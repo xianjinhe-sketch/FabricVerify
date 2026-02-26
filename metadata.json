@@ -1,0 +1,7 @@
+{
+  "name": "FabricVerify",
+  "description": "A comprehensive fabric inspection application for inspectors, CS, and clients.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
