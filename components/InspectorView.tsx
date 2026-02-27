@@ -56,9 +56,19 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
   const runOCR = async () => {
     if (!job.packingListPhotos || job.packingListPhotos.length === 0) return;
     setLoadingOCR(true);
-    const rolls = await parsePackingList(job.packingListPhotos);
-    onUpdateJob({ ...job, rolls: rolls as RollData[], samplingMethod: 'TEN_PERCENT' });
-    setLoadingOCR(false);
+    try {
+      const rolls = await parsePackingList(job.packingListPhotos);
+      if (!rolls || rolls.length === 0) {
+        alert('未能从图片中识别到任何卷布信息。请确认图片清晰，或尝试重新拍照后再试。');
+      } else {
+        onUpdateJob({ ...job, rolls: rolls as RollData[], samplingMethod: 'TEN_PERCENT' });
+      }
+    } catch (err) {
+      console.error('OCR Error:', err);
+      alert(`扫描装箱单时发生错误，请检查您的网络连接和 API 配置后重试。\n\n错误详情：${String(err)}`);
+    } finally {
+      setLoadingOCR(false);
+    }
   };
 
   const runLightingAnalysis = async () => {
@@ -99,7 +109,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
         r.rollNo,
         r.dyeLot,
         r.actualLength || r.length,
-        r.actualWidth || r.width,
+        r.cuttableWidth || r.width,
         r.actualWeight || r.weight,
         stats.points1,
         stats.points2,

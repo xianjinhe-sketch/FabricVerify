@@ -33,7 +33,7 @@ export const parsePackingList = async (base64Images: string[]): Promise<Partial<
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: {
         parts: [
           ...imageParts,
@@ -66,7 +66,10 @@ export const parsePackingList = async (base64Images: string[]): Promise<Partial<
     });
 
     const text = response.text;
-    if (!text) return [];
+    if (!text) {
+      console.warn("Empty response from Gemini");
+      return [];
+    }
 
     const parsed = typeof text === 'string' ? JSON.parse(text) : text;
 
@@ -96,7 +99,7 @@ export const parseWeight = async (base64Image: string): Promise<number | null> =
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
@@ -129,7 +132,7 @@ export const analyzeLighting = async (base64Image: string): Promise<{ lux: numbe
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
