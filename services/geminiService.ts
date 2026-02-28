@@ -1,123 +1,117 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { RollData } from "../types";
 
-const parseJsonClean = (text: string) => {
-  try {
-    const jsonStart = text.indexOf('[');
-    const jsonEnd = text.lastIndexOf(']');
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      return JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+/**
+ * 集中处理 Gemini 请求，通过后端代理
+ */
+async function callGemini(contents: any[], schema?: any) {
+  const body: any = {
+    contents: contents,
+    generationConfig: {
+      responseMimeType: "application/json"
     }
-    return [];
-  } catch (e) {
-    console.error("JSON Parse Error", e);
-    return [];
+  };
+
+  if (schema) {
+    body.generationConfig.responseSchema = schema;
   }
-};
+
+  const response = await fetch("/api/gemini", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    // 提取更详细的错误信息
+    const msg = result.error?.message || result.message || "Gemini API failed";
+    throw new Error(msg);
+  }
+
+  return result.candidates[0].content.parts[0].text;
+}
 
 export const parsePackingList = async (base64Images: string[]): Promise<Partial<RollData>[]> => {
-  if (!import.meta.env.VITE_GEMINI_API_KEY) {
-    console.error("API Key missing");
-    return [];
-  }
-
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
-  // Build image parts from all uploaded photos
-  const imageParts = base64Images.map(img => ({
-    inlineData: {
-      mimeType: 'image/jpeg' as const,
-      data: img.replace(/^data:image\/(png|jpeg|jpg);base64,/, '')
-    }
-  }));
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: {
-        parts: [
-          ...imageParts,
-          {
-            text: `Analyze these image(s) of a fabric packing list/roll list. 
-            Extract the following information for each roll found in the table(s): 
-            Roll Number, Dye Lot Number, Length, Weight, and Width (in inches).
-            If width is not specified per roll, look for a common fabric width in the header area.
-            Return ONLY a JSON array of objects. Keys: "rollNo", "dyeLot", "length", "weight", "width".
-            Ensure numerical values are numbers. If width is not found, use 0.`
-          }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              rollNo: { type: Type.STRING },
-              dyeLot: { type: Type.STRING },
-              length: { type: Type.NUMBER },
-              weight: { type: Type.NUMBER },
-              width: { type: Type.NUMBER }
-            }
-          }
+    const parts = [
+      ...base64Images.map(img => ({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: img.replace(/^data:image\/(png|jpeg|jpg);base64,/, '')
         }
+      })),
+      {
+        text: `You are an industrial OCR assistant for fabric inspection. 
+        Analyze the provided fabric packing list image(s) and extract roll information into a JSON array.
+
+        Field Mappings:
+        - rollNo: Look for "Roll No", "Piece No", "卷号", "匹号". 
+        - dyeLot: Look for "Dye Lot", "Batch No", "Lot No", "缸号".
+        - length: Look for "Length", "Quantity", "Meters", "米数". Must be a number.
+        - weight: Look for "Weight", "G/M2", "克重". Must be a number.
+        - width: Look for "Width", "Cuttable Width", "门幅". Must be a number.
+
+        Parsing Rules:
+        1. Accuracy: Do not hallucinate. If a value is unreadable, use null or 0.
+        2. Global Values: Often "Width" is written once at the top/bottom. If so, apply it to all rows. Default to 58 if not found.
+        3. Table Structure: Handle multi-column layouts. Each row in the physical list must be a separate object in the array.
+        4. Consistency: Ensure data types match (string for IDs, number for measurements).
+        5. Completion: Extraction must be exhaustive. Do not skip any rows.
+        
+        Return ONLY a JSON array of objects conforming to the schema.`
       }
-    });
+    ];
 
-    const text = response.text;
-    if (!text) {
-      console.warn("Empty response from Gemini");
-      return [];
-    }
+    const schema = {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          rollNo: { type: "STRING" },
+          dyeLot: { type: "STRING" },
+          length: { type: "NUMBER" },
+          weight: { type: "NUMBER" },
+          width: { type: "NUMBER" }
+        },
+        required: ["rollNo", "dyeLot", "length", "weight", "width"]
+      }
+    };
 
-    const parsed = typeof text === 'string' ? JSON.parse(text) : text;
+    const text = await callGemini([{ role: 'user', parts }], schema);
+    const parsed = JSON.parse(text);
 
     return parsed.map((item: any) => ({
       rollNo: String(item.rollNo || ''),
       dyeLot: String(item.dyeLot || ''),
       length: Number(item.length || 0),
       weight: Number(item.weight || 0),
-      width: Number(item.width) > 0 ? Number(item.width) : 58, // Default 58 if not found
+      width: Number(item.width) > 0 ? Number(item.width) : 58,
       status: 'PENDING',
       defects: [],
       comments: '',
       isSelected: false,
       id: Math.random().toString(36).substr(2, 9)
     }));
-
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    return [];
+  } catch (error: any) {
+    console.error("Gemini OCR Error:", error);
+    throw error; // 抛出错误让 UI 处理提示
   }
 };
 
 export const parseWeight = async (base64Image: string): Promise<number | null> => {
-  if (!import.meta.env.VITE_GEMINI_API_KEY) return null;
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-  const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Read the fabric weight number from this image (e.g. GSM or oz/yd). Return only the number." }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            weight: { type: Type.NUMBER }
-          }
+    const parts = [
+      {
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '')
         }
-      }
-    });
+      },
+      { text: "Read the scale weight number. Return JSON: {\"weight\": number}" }
+    ];
 
-    const parsed = typeof response.text === 'string' ? JSON.parse(response.text) : response.text;
+    const text = await callGemini([{ role: 'user', parts }]);
+    const parsed = JSON.parse(text);
     return parsed.weight || null;
   } catch (e) {
     console.error(e);
@@ -126,40 +120,19 @@ export const parseWeight = async (base64Image: string): Promise<number | null> =
 };
 
 export const analyzeLighting = async (base64Image: string): Promise<{ lux: number, status: 'PASS' | 'FAIL' | 'WARNING', message: string }> => {
-  if (!import.meta.env.VITE_GEMINI_API_KEY) return { lux: 0, status: 'FAIL', message: 'API Key missing' };
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-  const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          {
-            text: `Analyze the lighting condition in this fabric inspection environment. 
-          Estimate the illuminance (Lux) based on overall brightness, shadows, and clarity. 
-          Usually, textile inspection requires >1000 Lux.
-          Return a JSON object with: 
-          "lux": estimated number, 
-          "status": "PASS" if >1000, "WARNING" if 500-1000, "FAIL" if <500,
-          "message": a brief description of the lighting quality.` }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            lux: { type: Type.NUMBER },
-            status: { type: Type.STRING },
-            message: { type: Type.STRING }
-          }
+    const parts = [
+      {
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '')
         }
-      }
-    });
+      },
+      { text: `Analyze lighting. Return JSON: {"lux": number, "status": "PASS"|"WARNING"|"FAIL", "message": "string"}` }
+    ];
 
-    return JSON.parse(response.text);
+    const text = await callGemini([{ role: 'user', parts }]);
+    return JSON.parse(text);
   } catch (e) {
     console.error(e);
     return { lux: 0, status: 'FAIL', message: 'Analysis failed' };

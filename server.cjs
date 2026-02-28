@@ -13,9 +13,77 @@ if (!fs.existsSync(distPath)) {
     process.exit(1);
 }
 
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(distPath));
 
-// SPA 路由回退，确保单页应用所有路由都返回 index.html
+// Gemini 代理接口
+app.post('/api/gemini', async (req, res) => {
+    const { contents, generationConfig } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+    if (!apiKey) {
+        return res.status(500).json({ error: { message: 'Gemini API Key missing' } });
+    }
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents, generationConfig })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+        res.json(data);
+    } catch (error) {
+        console.error('[Gemini Proxy Error]', error);
+        res.status(500).json({ error: { message: error.message } });
+    }
+});
+
+// AI 代理接口 (DashScope)
+app.post('/api/ai', async (req, res) => {
+    const { messages, model = 'qwen-vl-max', response_format } = req.body;
+    const apiKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_DASHSCOPE_API_KEY;
+
+    if (!apiKey) {
+        return res.status(500).json({ error: { message: 'Server API Key missing' } });
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000); // 90秒超时
+
+        const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model,
+                messages,
+                stream: false,
+                ...(response_format ? { response_format } : {})
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+        const data = await response.json();
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+        res.json(data);
+    } catch (error) {
+        console.error('[AI Proxy Error]', error);
+        res.status(500).json({ error: { message: error.message } });
+    }
+});
+
+// SPA 路由回退
 app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });

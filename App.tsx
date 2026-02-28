@@ -4,7 +4,7 @@ import { calculateRollStats } from './utils/scoring';
 import InspectorView from './components/InspectorView';
 import ClientPortal from './components/ClientPortal';
 import CSDashboard from './components/CSDashboard';
-import { LayoutDashboard, ClipboardCheck, Users, SearchCheck, Download } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, Users, SearchCheck } from 'lucide-react';
 
 // Main App Component
 const App: React.FC = () => {
@@ -17,7 +17,7 @@ const App: React.FC = () => {
     fabricType: FabricType.WOVEN,
     environmentPhotos: {},
     rolls: [],
-    status: 'DRAFT',
+    status: 'DRAFT' as const,
     passThreshold: 20
   });
 
@@ -34,7 +34,7 @@ const App: React.FC = () => {
         r.rollNo,
         r.dyeLot,
         r.actualLength || r.length,
-        r.actualWidth || r.width,
+        r.cuttableWidth || r.width,
         stats.points1, stats.points2, stats.points3, stats.points4,
         stats.totalPoints,
         stats.score.toFixed(1),
@@ -106,8 +106,12 @@ const App: React.FC = () => {
                   <button
                     className="bg-brand-600 text-white px-6 py-3 rounded font-bold hover:bg-brand-700 disabled:opacity-50 flex-1"
                     onClick={() => {
-                      setActiveJob({ ...activeJob, status: 'APPROVED' });
-                      generateReport();
+                      if (activeJob.status === 'APPROVED') {
+                        generateReport();
+                      } else {
+                        setActiveJob({ ...activeJob, status: 'APPROVED' });
+                        generateReport();
+                      }
                     }}
                   >
                     {activeJob.status === 'APPROVED' ? 'Download CSV Report' : 'Approve & Generate Report'}
@@ -127,11 +131,6 @@ const App: React.FC = () => {
                     </button>
                   )}
                 </div>
-                {activeJob.status === 'REJECTED' && (
-                  <div className="mt-4 p-4 bg-red-50 text-red-800 rounded border border-red-100 font-medium">
-                    Status: Rejected. Waiting for Inspector to update.
-                  </div>
-                )}
               </div>
             ) : (
               <div className="text-slate-500 italic">No reports pending review. (Status: {activeJob.status})</div>
@@ -186,7 +185,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6">
+      <main className="flex-1 max-w-xl mx-auto w-full p-4 md:p-6">
         {renderContent()}
       </main>
     </div>

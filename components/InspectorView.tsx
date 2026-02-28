@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Camera, FileText, Upload, Plus, Trash2, ChevronRight, Save, Download, Printer, CheckSquare, Square, ScanLine, BadgeCheck } from 'lucide-react';
+import { Camera, FileText, Upload, Plus, Trash2, ChevronRight, Save, Download, Printer, CheckSquare, Square, ScanLine, BadgeCheck, ClipboardCheck } from 'lucide-react';
 import { InspectionJob, RollData, DEFECT_TYPES, Defect, FabricGroup, FabricType } from '../types';
 import { parsePackingList, parseWeight, analyzeLighting } from '../services/geminiService';
 import { calculateRollStats as calcRollStats, suggestPointsFromLength, getThresholdByGroup, getFabricGroupMapping, getBowSkewTolerance } from '../utils/scoring';
@@ -31,15 +31,22 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
   };
 
   // Helper to handle file uploads
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     field: 'gate' | 'workshop' | 'machine' | 'packingList'
   ) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
+      reader.onloadend = async () => {
+        let result = reader.result as string;
+
+        // 如果是装箱单或大图，进行前端压缩
+        if (field === 'packingList' || field === 'machine') {
+          const { compressImage } = await import('../utils/image');
+          result = await compressImage(result);
+        }
+
         if (field === 'packingList') {
           onUpdateJob({ ...job, packingListPhotos: [...(job.packingListPhotos || []), result] });
         } else {
@@ -57,15 +64,30 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     if (!job.packingListPhotos || job.packingListPhotos.length === 0) return;
     setLoadingOCR(true);
     try {
-      const rolls = await parsePackingList(job.packingListPhotos);
-      if (!rolls || rolls.length === 0) {
-        alert('未能从图片中识别到任何卷布信息。请确认图片清晰，或尝试重新拍照后再试。');
+      const newRolls = await parsePackingList(job.packingListPhotos);
+      if (!newRolls || newRolls.length === 0) {
+        alert('未能从图片中识别到任何卷布信息。请确认图片清晰，或尝试重新拍照后多选上传。');
       } else {
-        onUpdateJob({ ...job, rolls: rolls as RollData[], samplingMethod: 'TEN_PERCENT' });
+        // 如果已经有卷了，询问是追加还是替换
+        let finalRolls = newRolls as RollData[];
+        if (job.rolls.length > 0) {
+          const confirmAdd = window.confirm(`识别到 ${newRolls.length} 卷。是将这些新卷【追加】到现有列表吗？\n\n点击"确定"追加，点击"取消"替换整个列表。`);
+          if (confirmAdd) {
+            finalRolls = [...job.rolls, ...finalRolls];
+          }
+        }
+        onUpdateJob({ ...job, rolls: finalRolls, samplingMethod: job.samplingMethod || 'TEN_PERCENT' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('OCR Error:', err);
-      alert(`扫描装箱单时发生错误，请检查您的网络连接和 API 配置后重试。\n\n错误详情：${String(err)}`);
+      // 提取更友好的错误提示
+      let errorMsg = String(err);
+      if (errorMsg.includes('429') || errorMsg.includes('quota')) {
+        errorMsg = "API 请求频率过快（429），请稍等 1 分钟后再试。";
+      } else if (errorMsg.includes('socket') || errorMsg.includes('timeout')) {
+        errorMsg = "网络连接超时，请检查您的网络环境。";
+      }
+      alert(`扫描失败：${errorMsg}`);
     } finally {
       setLoadingOCR(false);
     }
@@ -227,8 +249,9 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-1">Fabric Group</label>
+            <label htmlFor="fabric-group-select" className="block text-sm font-bold text-slate-700 mb-1">Fabric Group</label>
             <select
+              id="fabric-group-select"
               value={job.fabricGroup || ''}
               onChange={(e) => {
                 const group = e.target.value as FabricGroup;
@@ -257,12 +280,13 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                 <p className="text-slate-800 font-bold text-sm">Sampling Strategy (Protocol 1.4)</p>
                 <div className="flex items-center gap-2 mt-1">
                   <input
+                    id="shipment-yards-input"
                     type="number"
                     placeholder="Total Shipment Yards"
                     className="p-1 border rounded text-xs w-32"
                     onChange={(e) => onUpdateJob({ ...job, totalShipmentQuantity: Number(e.target.value) })}
                   />
-                  <span className="text-[10px] text-slate-400">Shipment Yards</span>
+                  <label htmlFor="shipment-yards-input" className="text-[10px] text-slate-400">Shipment Yards</label>
                 </div>
               </div>
               <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -439,7 +463,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                   key={roll.id}
                   className={`p-3 flex items-center gap-3 ${bgClass} transition-colors`}
                 >
-                  <button onClick={(e) => toggleRollSelection(roll.id, e)} className="text-slate-500 hover:text-brand-600">
+                  <button onClick={(e) => toggleRollSelection(roll.id, e)} className="text-slate-500 hover:text-brand-600" aria-label={roll.isSelected ? "Deselect roll" : "Select roll"}>
                     {roll.isSelected ? <CheckSquare className="text-brand-600" size={24} /> : <Square size={24} />}
                   </button>
 
@@ -482,192 +506,261 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     const stats = calculateRollStats(roll);
 
     return (
-      <div className="fixed inset-0 bg-slate-50 z-50 overflow-y-auto">
-        <div className="bg-white shadow-md p-3 sticky top-0 z-10 flex items-center justify-between">
-          <button onClick={() => setSelectedRollId(null)} className="text-slate-500 font-medium px-2">Cancel</button>
-          <div className="flex flex-col items-center">
-            <h2 className="font-bold text-lg leading-none">Roll #{roll.rollNo}</h2>
-            <span className="text-[10px] text-slate-400">Lot: {roll.dyeLot}</span>
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 overflow-y-auto pt-4 pb-20 md:pt-10 transition-all">
+        <div className="max-w-xl mx-auto bg-slate-50 min-h-full md:min-h-[90vh] md:rounded-t-3xl shadow-2xl relative overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="bg-white px-4 py-4 sticky top-0 z-10 flex items-center justify-between border-b border-slate-200">
+            <button
+              onClick={() => setSelectedRollId(null)}
+              className="text-slate-500 font-medium px-2 hover:bg-slate-50 py-1 rounded"
+            >
+              Cancel
+            </button>
+            <div className="flex flex-col items-center flex-1">
+              <h2 className="font-extrabold text-lg text-slate-800 leading-none">Roll #{roll.rollNo}</h2>
+              <span className="text-[10px] text-slate-400 font-bold mt-1">Lot: {roll.dyeLot}</span>
+            </div>
+            <button
+              onClick={() => {
+                handleRollUpdate({ ...roll, status: 'INSPECTED' });
+                setSelectedRollId(null);
+              }}
+              className="text-brand-600 font-bold px-2 hover:bg-slate-50 py-1 rounded"
+            >
+              Done
+            </button>
           </div>
-          <button
-            onClick={() => {
-              handleRollUpdate({ ...roll, status: 'INSPECTED' });
-              setSelectedRollId(null);
-            }}
-            className="text-brand-600 font-bold px-2"
-          >
-            Done
-          </button>
-        </div>
 
-        <div className="p-4 space-y-4 pb-20">
-          {/* Header Info - Compact */}
-          <div className="bg-white p-3 rounded-lg shadow-sm space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Roll No</label>
-                <input
-                  type="text"
-                  value={roll.rollNo}
-                  onChange={(e) => handleRollUpdate({ ...roll, rollNo: e.target.value })}
-                  className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                />
+          <div className="p-4 space-y-6 flex-1 pb-24 h-full overflow-y-auto">
+            {/* Quick Stats Banner */}
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-2xl shadow-xl flex justify-between items-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+              <div className="flex flex-col relative z-10">
+                <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Penalty Points</span>
+                <span className="text-4xl font-black">{stats.totalPoints}</span>
               </div>
-              <div>
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Dye Lot</label>
-                <input
-                  type="text"
-                  value={roll.dyeLot}
-                  onChange={(e) => handleRollUpdate({ ...roll, dyeLot: e.target.value })}
-                  className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Length (m)</label>
-                <input
-                  type="number"
-                  value={roll.actualLength || roll.length}
-                  onChange={(e) => handleRollUpdate({ ...roll, actualLength: Number(e.target.value) })}
-                  className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Cuttable Width (in)</label>
-                <input
-                  type="number"
-                  value={roll.cuttableWidth || roll.width}
-                  onChange={(e) => handleRollUpdate({ ...roll, cuttableWidth: Number(e.target.value) })}
-                  className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Overall Width (in)</label>
-                <input
-                  type="number"
-                  value={roll.overallWidth || ''}
-                  onChange={(e) => handleRollUpdate({ ...roll, overallWidth: Number(e.target.value) })}
-                  className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Bow/Skew (%)</label>
-                <input
-                  type="number"
-                  value={roll.bowSkew || ''}
-                  onChange={(e) => handleRollUpdate({ ...roll, bowSkew: Number(e.target.value) })}
-                  placeholder={`Max: ${getBowSkewTolerance(job.fabricType, false)} Solid / ${getBowSkewTolerance(job.fabricType, true)} Print`}
-                  className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold flex justify-between">
-                  <span>Weight (gsm/oz)</span>
-                  <span className="text-brand-600 flex items-center gap-1 cursor-pointer" onClick={() => document.getElementById('weight-cam')?.click()}>
-                    <ScanLine size={12} /> Scan
+              <div className="flex flex-col text-right relative z-10">
+                <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1 font-sans">Points/100y²</span>
+                <div className="flex items-center justify-end gap-3">
+                  <span className={`text-4xl font-black ${stats.isPass ? 'text-green-400' : 'text-red-400'}`}>
+                    {stats.score.toFixed(1)}
                   </span>
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={roll.actualWeight || roll.weight}
-                    onChange={(e) => handleRollUpdate({ ...roll, actualWeight: Number(e.target.value) })}
-                    className="w-full p-1.5 text-sm border rounded bg-slate-50 font-medium"
-                  />
-                  <input
-                    id="weight-cam"
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = async () => {
-                          const res = await parseWeight(reader.result as string);
-                          if (res) handleRollUpdate({ ...roll, actualWeight: res });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Real-time Stats */}
-          <div className="bg-slate-800 text-white p-3 rounded-lg shadow-sm flex justify-between items-center">
-            <div className="flex flex-col">
-              <span className="text-[10px] text-slate-300 uppercase">Total Points</span>
-              <span className="text-xl font-bold">{stats.totalPoints}</span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[10px] text-slate-300 uppercase">Score</span>
-              <div className="flex items-center justify-end gap-2">
-                <span className={`text-xl font-bold ${stats.isPass ? 'text-green-400' : 'text-red-400'}`}>
-                  {stats.score.toFixed(1)}
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${stats.isPass ? 'bg-green-500 text-white' : 'bg-yellow-500 text-black'}`}>
-                  {stats.isPass ? 'PASS' : 'FAIL'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Defects List */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-end">
-              <h3 className="font-semibold text-slate-700 text-sm">Defects Log</h3>
-            </div>
-
-            {roll.defects.map((defect, idx) => (
-              <div key={idx} className="bg-white p-2 rounded shadow-sm flex justify-between items-center border-l-4 border-red-400">
-                <div className="flex items-center gap-3">
-                  {defect.imageUrl && (
-                    <img src={defect.imageUrl} alt="Defect" className="w-10 h-10 rounded object-cover border" />
-                  )}
-                  <div>
-                    <div className="font-medium text-slate-800 text-sm">{defect.name}</div>
-                    <div className="flex gap-2">
-                      <span className="text-xs bg-slate-100 px-1.5 rounded text-slate-600">Points: <b>{defect.points}</b></span>
-                    </div>
+                  <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${stats.isPass ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                    {stats.isPass ? 'PASS' : 'FAIL'}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    const newDefects = roll.defects.filter((_, i) => i !== idx);
-                    handleRollUpdate({ ...roll, defects: newDefects });
-                  }}
-                  className="text-slate-400 hover:text-red-500 p-2"
-                >
-                  <Trash2 size={16} />
-                </button>
               </div>
-            ))}
-          </div>
+            </div>
 
-          {/* Add Defect Section */}
-          <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
-            <h3 className="font-semibold text-slate-700 mb-2 text-sm">Add New Defect</h3>
-            <DefectInput
-              defectCounts={defectCounts}
-              onAdd={(d) => {
-                handleRollUpdate({ ...roll, defects: [...roll.defects, d] });
-                incrementDefectCount(d.name);
-              }}
-            />
-          </div>
+            {/* Roll Specifications Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BadgeCheck size={16} className="text-brand-600" />
+                  <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Specifications</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref: {roll.dyeLot}</span>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="roll-no-input" className="text-[10px] text-slate-400 uppercase font-black px-1">Roll Number</label>
+                  <input
+                    id="roll-no-input"
+                    type="text"
+                    value={roll.rollNo}
+                    onChange={(e) => handleRollUpdate({ ...roll, rollNo: e.target.value })}
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all placeholder:text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="dye-lot-input" className="text-[10px] text-slate-400 uppercase font-black px-1">Dye Lot</label>
+                  <input
+                    id="dye-lot-input"
+                    type="text"
+                    value={roll.dyeLot}
+                    onChange={(e) => handleRollUpdate({ ...roll, dyeLot: e.target.value })}
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all placeholder:text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="original-length-input" className="text-[10px] text-slate-400 uppercase font-black px-1">Original Length (m)</label>
+                  <input
+                    id="original-length-input"
+                    type="number"
+                    step="0.1"
+                    value={roll.actualLength || roll.length}
+                    onChange={(e) => handleRollUpdate({ ...roll, actualLength: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all text-brand-600 font-sans"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="cuttable-width-input" className="text-[10px] text-slate-400 uppercase font-black px-1">Cuttable Width (in)</label>
+                  <input
+                    id="cuttable-width-input"
+                    type="number"
+                    step="0.01"
+                    value={roll.cuttableWidth || roll.width}
+                    onChange={(e) => handleRollUpdate({ ...roll, cuttableWidth: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="overall-width-input" className="text-[10px] text-slate-400 uppercase font-black px-1">Overall Width (in)</label>
+                  <input
+                    id="overall-width-input"
+                    type="number"
+                    step="0.01"
+                    value={roll.overallWidth || ''}
+                    onChange={(e) => handleRollUpdate({ ...roll, overallWidth: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="bow-skew-input" className="text-[10px] text-slate-400 uppercase font-black px-1">Bow/Skew (%)</label>
+                  <input
+                    id="bow-skew-input"
+                    type="number"
+                    step="0.1"
+                    value={roll.bowSkew || ''}
+                    onChange={(e) => handleRollUpdate({ ...roll, bowSkew: Number(e.target.value) })}
+                    placeholder={`Max: ${getBowSkewTolerance(job.fabricType, false)} Solid / ${getBowSkewTolerance(job.fabricType, true)} Print`}
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+                  />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label htmlFor="actual-weight-input" className="text-[10px] text-slate-400 uppercase font-black px-1 flex justify-between items-center">
+                    Weight (gsm/oz)
+                    <span className="text-brand-600 flex items-center gap-1 cursor-pointer" onClick={() => document.getElementById('weight-cam')?.click()}>
+                      <ScanLine size={12} /> Scan
+                    </span>
+                  </label>
+                  <div className="relative group">
+                    <input
+                      id="actual-weight-input"
+                      type="number"
+                      step="0.1"
+                      value={roll.actualWeight || roll.weight}
+                      onChange={(e) => handleRollUpdate({ ...roll, actualWeight: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+                    />
+                    <input
+                      id="weight-cam"
+                      aria-label="Fabric weight camera"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = async () => {
+                            const res = await parseWeight(reader.result as string);
+                            if (res) handleRollUpdate({ ...roll, actualWeight: res });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          {/* Comments */}
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase">Remarks</label>
-            <textarea
-              value={roll.comments}
-              onChange={(e) => handleRollUpdate({ ...roll, comments: e.target.value })}
-              className="w-full p-2 border rounded-lg mt-1 h-20 text-sm"
-              placeholder="Hand feel notes, shading issues..."
-            />
+            {/* Defects Log Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="font-extrabold text-slate-800 flex items-center gap-2">
+                  <div className="w-1.5 h-6 bg-red-500 rounded-full"></div>
+                  Inspection Journal
+                </h3>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{roll.defects.length} Incidents</span>
+                  {roll.defects.length > 0 && <span className="text-[9px] text-red-400 font-bold uppercase tracking-widest mt-0.5">Points Audit Active</span>}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {roll.defects.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 shadow-inner">
+                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <ClipboardCheck className="text-slate-300" size={24} />
+                    </div>
+                    <p className="text-slate-400 text-sm font-medium">Ready for inspection entry.</p>
+                  </div>
+                ) : (
+                  roll.defects.map((defect, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center group active:scale-[0.98] transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          {defect.imageUrl ? (
+                            <img src={defect.imageUrl} alt="Defect" className="w-16 h-16 rounded-xl object-cover border-2 border-slate-50 shadow-sm" />
+                          ) : (
+                            <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300">
+                              <Camera size={24} />
+                            </div>
+                          )}
+                          <div className={`absolute -top-2 -left-2 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center text-[10px] font-black shadow-md ${defect.points >= 3 ? 'bg-red-500 text-white' : 'bg-yellow-400 text-yellow-900'}`}>
+                            {defect.points}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-black text-slate-800 text-sm mb-0.5">{defect.name}</div>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            <span className="text-[9px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest">
+                              {defect.points} POINT{defect.points > 1 ? 'S' : ''}
+                            </span>
+                            {defect.isContinuous && <span className="text-[9px] bg-indigo-50 text-indigo-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest">Continuous</span>}
+                            {defect.isHole && <span className="text-[9px] bg-red-50 text-red-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest border border-red-100">Hole</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newDefects = roll.defects.filter((_, i) => i !== idx);
+                          handleRollUpdate({ ...roll, defects: newDefects });
+                        }}
+                        title="Delete this defect log"
+                        className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-3 rounded-2xl transition-all"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Interactive Add Defect Section */}
+            <div className="bg-white p-6 rounded-[2rem] shadow-2xl shadow-slate-200/60 border border-slate-200 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                <Plus size={80} />
+              </div>
+              <h3 className="font-black text-slate-800 mb-6 text-xs uppercase tracking-[0.2em] flex items-center gap-2">
+                <div className="w-2 h-2 bg-brand-600 rounded-full"></div>
+                Log Incident
+              </h3>
+              <DefectInput
+                defectCounts={defectCounts}
+                onAdd={(d) => {
+                  handleRollUpdate({ ...roll, defects: [...roll.defects, d] });
+                  incrementDefectCount(d.name);
+                }}
+              />
+            </div>
+
+            {/* Remarks Section */}
+            <div className="space-y-3 pb-4 px-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                Inspector Observations
+              </label>
+              <textarea
+                value={roll.comments}
+                onChange={(e) => handleRollUpdate({ ...roll, comments: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-sm font-semibold focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none min-h-[120px] shadow-sm placeholder:text-slate-300"
+                placeholder="Detail any surface irregularities, handle/feel issues or color shading across the roll..."
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -847,6 +940,7 @@ const DefectInput: React.FC<{ onAdd: (d: Defect) => void, defectCounts: Record<s
         value={type}
         onChange={(e) => setType(e.target.value)}
         className="w-full p-2 border rounded bg-slate-50 text-sm"
+        aria-label="Select defect type"
       >
         {sortedTypes.map(t => <option key={t} value={t}>{t}</option>)}
       </select>
@@ -873,9 +967,11 @@ const DefectInput: React.FC<{ onAdd: (d: Defect) => void, defectCounts: Record<s
       </div>
 
       <div>
-        <label className="text-[10px] text-slate-500 uppercase font-bold">Defect Length (inches)</label>
+        <label htmlFor="defect-length-input" className="text-[10px] text-slate-500 uppercase font-bold">Defect Length (inches)</label>
         <input
+          id="defect-length-input"
           type="number"
+          step="0.1"
           value={defectLength || ''}
           onChange={(e) => setDefectLength(e.target.value ? Number(e.target.value) : undefined)}
           placeholder="Auto-suggests points: ≤3→1, ≤6→2, ≤9→3, >9→4"
@@ -900,8 +996,8 @@ const DefectInput: React.FC<{ onAdd: (d: Defect) => void, defectCounts: Record<s
 
       {photo && (
         <div className="relative w-20 h-20">
-          <img src={photo} className="w-full h-full object-cover rounded border" />
-          <button onClick={() => setPhoto(undefined)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><Trash2 size={12} /></button>
+          <img src={photo} alt="Defect detail" className="w-full h-full object-cover rounded border" />
+          <button onClick={() => setPhoto(undefined)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1" aria-label="Remove defect photo"><Trash2 size={12} /></button>
         </div>
       )}
 

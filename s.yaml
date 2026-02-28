@@ -33,6 +33,8 @@ resources:
           - start
       environmentVariables:
         PORT: '9000'
+        DASHSCOPE_API_KEY: 'sk-4ed762723e8d48cd9884a05497bd5c2e'
+        GEMINI_API_KEY: 'AIzaSyDgj38jhac20WhoFPetEhGaNtQZ_SCm9EU'
       triggers:
         - triggerName: defaultTrigger
           triggerType: http
