@@ -213,7 +213,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
       </div>
       <button
         onClick={() => setStep(2)}
-        className="w-full py-3 bg-brand-600 text-white rounded-lg font-bold text-lg hover:bg-brand-500 shadow-md mt-4"
+        className="w-full py-3 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-500 shadow-md mt-4"
       >
         Next Step
       </button>
@@ -492,7 +492,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
 
         <button
           onClick={() => setStep(3)}
-          className="w-full py-3 bg-brand-600 text-white rounded-lg font-bold text-lg hover:bg-brand-500 shadow-md mt-4"
+          className="w-full py-3 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-500 shadow-md mt-4"
         >
           View Summary & Finish
         </button>
