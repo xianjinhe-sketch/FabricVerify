@@ -1,3 +1,5 @@
+// types.ts
+
 export enum Role {
   CLIENT = 'CLIENT',
   CS = 'CS',
@@ -11,99 +13,54 @@ export enum FabricType {
 }
 
 export enum FabricGroup {
-  GROUP_A = 'Group A (20 pts)',
-  GROUP_B = 'Group B (25 pts)',
-  GROUP_C = 'Group C (35 pts)',
-  GROUP_D = 'Group D (40 pts)'
-}
-
-export interface Inspector {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  skills: string[];
-  equipment: string[];
-}
-
-export interface ClientProfile {
-  name: string;
-  contactPerson: string;
-  phone: string;
-  bankInfo: string;
-}
-
-export interface Booking {
-  id: string;
-  clientName: string;
-  fabricInfo: string;
-  inspectionDate: string;
-  requirements: string;
-  status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'APPROVED';
-  assignedInspectorId?: string;
-  photos?: string[]; // Reference photos provided by client
+  GROUP_A = 'GROUP_A',
+  GROUP_B = 'GROUP_B',
+  GROUP_C = 'GROUP_C',
+  GROUP_D = 'GROUP_D'
 }
 
 export interface Defect {
   id: string;
   name: string;
-  points: 1 | 2 | 3 | 4;
-  defectLength?: number; // length in inches, for auto-suggesting points
+  points: number;
   imageUrl?: string;
-  isContinuous?: boolean; // Continuous defects are often handled specially
-  isHole?: boolean; // Holes are always 4 points
+  isContinuous?: boolean;
+  isHole?: boolean;
 }
 
 export interface RollData {
   id: string;
   rollNo: string;
   dyeLot: string;
-  weight: number;
   length: number;
-  width: number; // in inches
-  overallWidth?: number;
-  cuttableWidth?: number;
-  actualLength?: number;
-  actualWeight?: number;
-  bowSkew?: number; // in percentage
+  weight: number;
+  width: number;
   defects: Defect[];
   comments: string;
   status: 'PENDING' | 'INSPECTED';
   isSelected?: boolean;
+  actualLength?: number;
+  actualWidth?: number;
+  actualWeight?: number;
 }
 
 export interface InspectionJob {
   id: string;
   bookingId: string;
-  environmentPhotos: {
-    gate?: string;
-    workshop?: string;
-    machine?: string;
-    lighting?: string; // Enhanced requirement: Lighting check
-  };
-  packingListPhotos?: string[];
-  rolls: RollData[];
-  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   fabricType: FabricType;
   fabricGroup?: FabricGroup;
-  totalShipmentQuantity?: number; // in yards
-  passThreshold: number; // Configurable pass threshold
-  reviewerComments?: string;
+  environmentPhotos: Record<string, string>;
+  packingListPhotos?: string[];
   lightingLux?: number;
-  samplingMethod?: 'TEN_PERCENT' | 'SQRT_TEN' | 'MANUAL';
+  rolls: RollData[];
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  passThreshold: number;
+  samplingMethod?: 'MANUAL' | 'TEN_PERCENT' | 'SQUARE_ROOT';
+  totalShipmentQuantity?: number;
+  reviewerComments?: string;
 }
 
-export const DEFECT_TYPES = {
-  WARP: [
-    'Coarse picks/ends', 'Fine picks/ends', 'Knots', 'Slubs', 'Compactor mark',
-    'Crease marks', 'Mending/burl marks', 'Misprint', 'Thick place', 'Thin place',
-    'Unprinted marks', 'Out of register', 'Seams marks', 'Color smear', 'Smash',
-    'Shrinkage mark', 'Soil/dirty mark', 'Spliced', 'Stain', 'Streaks', 'Shade bar', 'Stop mark'
-  ],
-  WEFT: [
-    'Barre', 'Broken picks/ends', 'Double picks/ends', 'End out', 'Filling bar',
-    'Float', 'Fly', 'Holes', 'Jerk-in', 'Misdraw', 'Mispicks', 'Mixed/Foreign yarn',
-    'Reed mark', 'Dropped stitches', 'Laddering', 'Needle lines', 'Press-off',
-    'Runs', 'Tucking', 'Wrong pattern', 'Dirty print'
-  ]
+export const DEFECT_TYPES: Record<'WARP' | 'WEFT', string[]> = {
+  WARP: ['Slub', 'Broken Yarn', 'Thick Yarn', 'Thin Yarn', 'Missing Yarn', 'Float', 'Knot'],
+  WEFT: ['Color Spot', 'Uneven Dyeing', 'Crease Mark', 'Stain', 'Oil Spot', 'Water Mark', 'Hole']
 };

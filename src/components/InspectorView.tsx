@@ -81,13 +81,15 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     } catch (err: any) {
       console.error('OCR Error:', err);
       // 提取更友好的错误提示
-      let errorMsg = String(err);
-      if (errorMsg.includes('429') || errorMsg.includes('quota')) {
-        errorMsg = "API 请求频率过快（429），请稍等 1 分钟后再试。";
-      } else if (errorMsg.includes('socket') || errorMsg.includes('timeout')) {
+      let errorMsg = err.message || String(err);
+      
+      // 如果是 Error 对象，通常 message 已经包含了我们自定义的文本
+      // 否则我们做一些基础的 fallback 处理
+      if (errorMsg.includes('socket') || errorMsg.includes('timeout')) {
         errorMsg = "网络连接超时，请检查您的网络环境。";
       }
-      alert(`扫描失败：${errorMsg}`);
+      
+      alert(`扫描失败：\n\n${errorMsg}`);
     } finally {
       setLoadingOCR(false);
     }

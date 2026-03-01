@@ -24,17 +24,33 @@ async function callGemini(contents: any[], schema?: any) {
   // We need to extract the parts for generateContent
   const parts = contents[0].parts;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: { parts },
-    config,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts },
+      config,
+    });
 
-  if (!response.text) {
-    throw new Error("Empty response from Gemini");
+    if (!response.text) {
+      throw new Error("Empty response from Gemini");
+    }
+
+    return response.text;
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
+    
+    const errorString = typeof error === 'string' ? error : JSON.stringify(error) + (error.message || '');
+    
+    if (errorString.includes("leaked") || errorString.includes("PERMISSION_DENIED") || errorString.includes("API key not valid")) {
+      throw new Error("您的 API Key 已被泄露或无效，已被 Google 禁用。\n\n解决办法：\n1. 前往 Google AI Studio (aistudio.google.com) 重新生成一个 API Key。\n2. 在 Vercel 的环境变量 (Environment Variables) 中更新 VITE_GEMINI_API_KEY。\n3. 重新部署您的 Vercel 项目。\n4. 切勿将 API Key 提交到 GitHub 公开仓库中。");
+    }
+    
+    if (errorString.includes("429") || errorString.includes("quota")) {
+      throw new Error("API 请求频率过快或额度已用尽，请稍等 1 分钟后再试。");
+    }
+
+    throw new Error(error.message || "调用 Gemini API 失败，请检查网络或 API Key。");
   }
-
-  return response.text;
 }
 
 export const parsePackingList = async (base64Images: string[]): Promise<Partial<RollData>[]> => {
