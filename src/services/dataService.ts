@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { InspectionJob, RollData, Defect } from '../types';
+import { InspectionJob, RollData, Defect, ClientStandard } from '../types';
 
 export const dataService = {
   async fetchActiveJob(): Promise<InspectionJob | null> {
@@ -7,6 +7,7 @@ export const dataService = {
       .from('inspection_jobs')
       .select(`
         *,
+        bookings (client_name),
         rolls (
           *,
           defects (*)
@@ -90,10 +91,51 @@ export const dataService = {
     if (error) throw error;
   },
 
+  async fetchClientStandards(clientName: string): Promise<ClientStandard[]> {
+    const { data, error } = await supabase
+      .from('client_standards')
+      .select('*')
+      .eq('client_name', clientName);
+    
+    if (error) throw error;
+    
+    return (data || []).map(s => ({
+      id: s.id,
+      clientId: s.client_id,
+      clientName: s.client_name,
+      fabricType: s.fabric_type,
+      samplingStandard: s.sampling_standard,
+      weightTolerance: s.weight_tolerance,
+      widthTolerance: s.width_tolerance,
+      colorTolerance: s.color_tolerance,
+      otherStandards: s.other_standards
+    }));
+  },
+
+  async saveClientStandard(standard: Partial<ClientStandard>) {
+    const { data, error } = await supabase
+      .from('client_standards')
+      .upsert({
+        client_name: standard.clientName,
+        fabric_type: standard.fabricType,
+        sampling_standard: standard.samplingStandard,
+        weight_tolerance: standard.weightTolerance,
+        width_tolerance: standard.widthTolerance,
+        color_tolerance: standard.colorTolerance,
+        other_standards: standard.otherStandards
+      }, { onConflict: 'client_name,fabric_type' })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
   mapJobFromDB(jobData: any): InspectionJob {
     return {
       id: jobData.id,
       bookingId: jobData.booking_id,
+      clientName: jobData.bookings?.client_name,
       fabricType: jobData.fabric_type,
       fabricGroup: jobData.fabric_group,
       environmentPhotos: jobData.environment_photos || {},

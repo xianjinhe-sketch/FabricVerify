@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Inspector, Booking } from '../types';
-import { Users, Calendar, Mail, Phone, Wrench, BadgeCheck, Briefcase, Loader2 } from 'lucide-react';
+import { Inspector, Booking, ClientStandard } from '../types';
+import { Users, Calendar, Mail, Phone, Wrench, BadgeCheck, Briefcase, Loader2, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { dataService } from '../services/dataService';
 
 const CSDashboard: React.FC = () => {
   const [view, setView] = useState<'SCHEDULE' | 'INSPECTORS'>('SCHEDULE');
   const [loading, setLoading] = useState(true);
+  const [selectedClientStandards, setSelectedClientStandards] = useState<{name: string, standards: ClientStandard[]} | null>(null);
+  const [loadingStandards, setLoadingStandards] = useState(false);
 
   // Real Data from Supabase
   const [inspectors, setInspectors] = useState<Inspector[]>([]);
@@ -108,6 +111,19 @@ const CSDashboard: React.FC = () => {
     }
   };
 
+  const viewStandards = async (clientName: string) => {
+    setLoadingStandards(true);
+    try {
+      const standards = await dataService.fetchClientStandards(clientName);
+      setSelectedClientStandards({ name: clientName, standards });
+    } catch (error) {
+      console.error('Error fetching standards:', error);
+      alert('Failed to load client standards');
+    } finally {
+      setLoadingStandards(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -143,6 +159,7 @@ const CSDashboard: React.FC = () => {
                 <th className="p-4">Date</th>
                 <th className="p-4">Fabric</th>
                 <th className="p-4">Status</th>
+                <th className="p-4">Standards</th>
                 <th className="p-4">Assign To</th>
               </tr>
             </thead>
@@ -156,6 +173,14 @@ const CSDashboard: React.FC = () => {
                      <span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                        {b.status}
                      </span>
+                  </td>
+                  <td className="p-4">
+                    <button 
+                      onClick={() => viewStandards(b.clientName)}
+                      className="text-brand-600 hover:text-brand-700 font-bold text-xs flex items-center gap-1"
+                    >
+                      <ShieldCheck size={14} /> View
+                    </button>
                   </td>
                   <td className="p-4">
                     <select 
@@ -286,6 +311,74 @@ const CSDashboard: React.FC = () => {
                </div>
              ))}
            </div>
+        </div>
+      )}
+      {/* Standards Modal */}
+      {selectedClientStandards && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">{selectedClientStandards.name}</h2>
+                <p className="text-sm text-slate-500">Inspection Standards Protocol</p>
+              </div>
+              <button 
+                onClick={() => setSelectedClientStandards(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X size={24} className="text-slate-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {selectedClientStandards.standards.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  No specific standards configured for this client.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {selectedClientStandards.standards.map(s => (
+                    <div key={s.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <h3 className="font-bold text-brand-700 border-b border-brand-100 pb-2 mb-4">
+                        {s.fabricType} Standards
+                      </h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Sampling</label>
+                          <div className="text-sm font-bold text-slate-700">{s.samplingStandard || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Weight Tolerance</label>
+                          <div className="text-sm font-bold text-slate-700">{s.weightTolerance || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Width Tolerance</label>
+                          <div className="text-sm font-bold text-slate-700">{s.widthTolerance || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Color Tolerance</label>
+                          <div className="text-sm font-bold text-slate-700">{s.colorTolerance || 'N/A'}</div>
+                        </div>
+                        {s.otherStandards && (
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Other</label>
+                            <div className="text-sm font-bold text-slate-700">{s.otherStandards}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button 
+                onClick={() => setSelectedClientStandards(null)}
+                className="px-6 py-2 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

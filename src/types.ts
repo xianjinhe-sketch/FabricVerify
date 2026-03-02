@@ -45,6 +45,18 @@ export interface ClientProfile {
   bankInfo: string;
 }
 
+export interface ClientStandard {
+  id: string;
+  clientId?: string;
+  clientName: string;
+  fabricType: FabricType;
+  samplingStandard: string;
+  weightTolerance: string;
+  widthTolerance: string;
+  colorTolerance: string;
+  otherStandards: string;
+}
+
 export interface Defect {
   id: string;
   name: string;
@@ -52,6 +64,7 @@ export interface Defect {
   imageUrl?: string;
   isContinuous?: boolean;
   isHole?: boolean;
+  defectLength?: number;
 }
 
 export interface RollData {
@@ -68,11 +81,15 @@ export interface RollData {
   actualLength?: number;
   actualWidth?: number;
   actualWeight?: number;
+  cuttableWidth?: number;
+  overallWidth?: number;
+  bowSkew?: number;
 }
 
 export interface InspectionJob {
   id: string;
   bookingId: string;
+  clientName?: string;
   fabricType: FabricType;
   fabricGroup?: FabricGroup;
   environmentPhotos: Record<string, string>;

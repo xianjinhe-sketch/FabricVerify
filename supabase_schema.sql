@@ -83,6 +83,21 @@ CREATE TABLE IF NOT EXISTS defects (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 7. Client Standards
+CREATE TABLE IF NOT EXISTS client_standards (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  client_id UUID REFERENCES profiles(id),
+  client_name TEXT, -- Fallback if not using profiles yet
+  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED')),
+  sampling_standard TEXT,
+  weight_tolerance TEXT,
+  width_tolerance TEXT,
+  color_tolerance TEXT,
+  other_standards TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(client_name, fabric_type)
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspectors ENABLE ROW LEVEL SECURITY;
@@ -90,18 +105,13 @@ ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rolls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE defects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE client_standards ENABLE ROW LEVEL SECURITY;
 
--- Basic Policies (Allow all for now, can be refined later)
-CREATE POLICY "Allow public read access" ON profiles FOR SELECT USING (true);
-CREATE POLICY "Allow public read access" ON inspectors FOR SELECT USING (true);
-CREATE POLICY "Allow public read access" ON bookings FOR SELECT USING (true);
-CREATE POLICY "Allow public read access" ON inspection_jobs FOR SELECT USING (true);
-CREATE POLICY "Allow public read access" ON rolls FOR SELECT USING (true);
-CREATE POLICY "Allow public read access" ON defects FOR SELECT USING (true);
-
-CREATE POLICY "Allow all access for authenticated users" ON profiles FOR ALL USING (true);
-CREATE POLICY "Allow all access for authenticated users" ON inspectors FOR ALL USING (true);
-CREATE POLICY "Allow all access for authenticated users" ON bookings FOR ALL USING (true);
-CREATE POLICY "Allow all access for authenticated users" ON inspection_jobs FOR ALL USING (true);
-CREATE POLICY "Allow all access for authenticated users" ON rolls FOR ALL USING (true);
-CREATE POLICY "Allow all access for authenticated users" ON defects FOR ALL USING (true);
+-- Basic Policies (Allow all for development)
+CREATE POLICY "Allow all access" ON profiles FOR ALL USING (true);
+CREATE POLICY "Allow all access" ON inspectors FOR ALL USING (true);
+CREATE POLICY "Allow all access" ON bookings FOR ALL USING (true);
+CREATE POLICY "Allow all access" ON inspection_jobs FOR ALL USING (true);
+CREATE POLICY "Allow all access" ON rolls FOR ALL USING (true);
+CREATE POLICY "Allow all access" ON defects FOR ALL USING (true);
+CREATE POLICY "Allow all access" ON client_standards FOR ALL USING (true);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Camera, FileText, Upload, Plus, Minus, Trash2, ChevronRight, Save, Download, Printer, CheckSquare, Square, ScanLine, BadgeCheck, ClipboardCheck } from 'lucide-react';
-import { InspectionJob, RollData, DEFECT_TYPES, Defect, FabricGroup, FabricType } from '../types';
+import { Camera, FileText, Upload, Plus, Minus, Trash2, ChevronRight, Save, Download, Printer, CheckSquare, Square, ScanLine, BadgeCheck, ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { InspectionJob, RollData, DEFECT_TYPES, Defect, FabricGroup, FabricType, ClientStandard } from '../types';
 import { parsePackingList, parseWeight, analyzeLighting } from '../services/geminiService';
 import { calculateRollStats as calcRollStats, suggestPointsFromLength, getThresholdByGroup, getFabricGroupMapping, getBowSkewTolerance } from '../utils/scoring';
 import { exportExcelReport } from '../utils/exportExcel';
@@ -16,6 +16,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
   const [step, setStep] = useState<number>(1);
   const [loadingOCR, setLoadingOCR] = useState(false);
   const [selectedRollId, setSelectedRollId] = useState<string | null>(null);
+  const [clientStandards, setClientStandards] = useState<ClientStandard | null>(null);
 
   // Track defect usage for sorting
   const [defectCounts, setDefectCounts] = useState<Record<string, number>>({});
@@ -27,7 +28,15 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
       counts[d.name] = (counts[d.name] || 0) + 1;
     }));
     setDefectCounts(counts);
-  }, []);
+
+    // Fetch standards if clientName is available
+    if (job.clientName) {
+      dataService.fetchClientStandards(job.clientName).then(standards => {
+        const relevant = standards.find(s => s.fabricType === job.fabricType);
+        if (relevant) setClientStandards(relevant);
+      });
+    }
+  }, [job.clientName, job.fabricType]);
 
   const incrementDefectCount = (name: string) => {
     setDefectCounts(prev => ({ ...prev, [name]: (prev[name] || 0) + 1 }));
@@ -318,6 +327,38 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
             <span className="text-slate-500">Threshold: <b>{job.passThreshold} pts / 100 sq.yd</b></span>
             {job.fabricGroup && <span className="text-brand-600 font-bold flex items-center gap-1"><BadgeCheck size={12} /> Intertek Standard Applied</span>}
           </div>
+
+          {clientStandards && (
+            <div className="mt-4 p-3 bg-brand-50 rounded-lg border border-brand-100">
+              <h4 className="text-xs font-bold text-brand-800 mb-2 flex items-center gap-1">
+                <ShieldCheck size={14} /> Client Specific Standards ({job.clientName})
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Sampling</span>
+                  <span className="font-bold text-slate-700">{clientStandards.samplingStandard || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Weight Tol.</span>
+                  <span className="font-bold text-slate-700">{clientStandards.weightTolerance || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Width Tol.</span>
+                  <span className="font-bold text-slate-700">{clientStandards.widthTolerance || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Color Tol.</span>
+                  <span className="font-bold text-slate-700">{clientStandards.colorTolerance || 'N/A'}</span>
+                </div>
+                {clientStandards.otherStandards && (
+                  <div className="bg-white p-1.5 rounded border border-brand-100 col-span-2">
+                    <span className="text-slate-400 block uppercase">Other</span>
+                    <span className="font-bold text-slate-700">{clientStandards.otherStandards}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sampling Suggestion */}
