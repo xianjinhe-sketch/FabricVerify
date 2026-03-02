@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Booking, ClientProfile } from '../types';
-import { Calendar, Package, ClipboardList, User } from 'lucide-react';
+import { Calendar, Package, ClipboardList, User, Loader2 } from 'lucide-react';
+import { supabase } from '../services/supabase';
 
 const ClientPortal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'BOOKING' | 'LIST'>('BOOKING');
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ClientProfile>({
     name: "Fashion Brand Inc.",
     contactPerson: "Alice Smith",
@@ -11,10 +13,39 @@ const ClientPortal: React.FC = () => {
     bankInfo: "Chase Bank **** 1234"
   });
 
-  const [bookings, setBookings] = useState<Booking[]>([
-    { id: '1', clientName: 'Fashion Brand Inc', fabricInfo: '100% Cotton Jersey', inspectionDate: '2023-11-25', requirements: 'Standard 4-point', status: 'COMPLETED' },
-    { id: '2', clientName: 'Fashion Brand Inc', fabricInfo: 'Poly Spandex', inspectionDate: '2023-12-01', requirements: 'Strict shade check', status: 'PENDING' }
-  ]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // In a real app, we'd filter by the current user's client ID
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedBookings = (data || []).map(b => ({
+        id: b.id,
+        clientName: b.client_name,
+        fabricInfo: b.fabric_info,
+        inspectionDate: b.inspection_date,
+        requirements: b.requirements,
+        status: b.status,
+        assignedInspectorId: b.assigned_inspector_id
+      }));
+      setBookings(mappedBookings);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [newBooking, setNewBooking] = useState<Partial<Booking>>({
     fabricInfo: '',
@@ -22,21 +53,51 @@ const ClientPortal: React.FC = () => {
     requirements: ''
   });
 
-  const handleSubmitBooking = () => {
+  const handleSubmitBooking = async () => {
     if(!newBooking.fabricInfo || !newBooking.inspectionDate) return;
-    const booking: Booking = {
-      id: Math.random().toString(),
-      clientName: profile.name,
-      fabricInfo: newBooking.fabricInfo || '',
-      inspectionDate: newBooking.inspectionDate || '',
-      requirements: newBooking.requirements || '',
-      status: 'PENDING'
-    };
-    setBookings([booking, ...bookings]);
-    setNewBooking({ fabricInfo: '', inspectionDate: '', requirements: '' });
-    setActiveTab('LIST');
-    alert("Booking Request Submitted!");
+    
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([{
+          client_name: profile.name,
+          fabric_info: newBooking.fabricInfo,
+          inspection_date: newBooking.inspectionDate,
+          requirements: newBooking.requirements,
+          status: 'PENDING'
+        }])
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        const mapped = {
+          id: data[0].id,
+          clientName: data[0].client_name,
+          fabricInfo: data[0].fabric_info,
+          inspectionDate: data[0].inspection_date,
+          requirements: data[0].requirements,
+          status: data[0].status
+        };
+        setBookings([mapped, ...bookings]);
+        setNewBooking({ fabricInfo: '', inspectionDate: '', requirements: '' });
+        setActiveTab('LIST');
+        alert("Booking Request Submitted!");
+      }
+    } catch (error) {
+      console.error('Error submitting booking:', error);
+      alert('Failed to submit booking');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="animate-spin text-brand-600" size={32} />
+        <span className="ml-2 text-slate-500">Loading Portal...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">

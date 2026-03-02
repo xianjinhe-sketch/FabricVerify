@@ -13,7 +13,7 @@ export const compressImage = (base64Str: string, maxWidth: number = 2000, qualit
             let width = img.width;
             let height = img.height;
 
-            // 保持比例缩放
+            // 保持比例压缩
             if (width > maxWidth) {
                 height = (maxWidth / width) * height;
                 width = maxWidth;

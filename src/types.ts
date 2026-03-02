@@ -19,6 +19,32 @@ export enum FabricGroup {
   GROUP_D = 'GROUP_D'
 }
 
+export interface Inspector {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  skills: string[];
+  equipment: string[];
+}
+
+export interface Booking {
+  id: string;
+  clientName: string;
+  fabricInfo: string;
+  inspectionDate: string;
+  requirements: string;
+  status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+  assignedInspectorId?: string;
+}
+
+export interface ClientProfile {
+  name: string;
+  contactPerson: string;
+  phone: string;
+  bankInfo: string;
+}
+
 export interface Defect {
   id: string;
   name: string;

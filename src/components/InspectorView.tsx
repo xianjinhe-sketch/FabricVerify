@@ -4,6 +4,8 @@ import { InspectionJob, RollData, DEFECT_TYPES, Defect, FabricGroup, FabricType 
 import { parsePackingList, parseWeight, analyzeLighting } from '../services/geminiService';
 import { calculateRollStats as calcRollStats, suggestPointsFromLength, getThresholdByGroup, getFabricGroupMapping, getBowSkewTolerance } from '../utils/scoring';
 import { exportExcelReport } from '../utils/exportExcel';
+import { dataService } from '../services/dataService';
+import { supabase } from '../services/supabase';
 
 interface InspectorViewProps {
   job: InspectionJob;
@@ -103,9 +105,14 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     alert(`Lighting Analysis: ${res.lux} Lux\nStatus: ${res.status}\n${res.message}`);
   };
 
-  const handleRollUpdate = (updatedRoll: RollData) => {
+  const handleRollUpdate = async (updatedRoll: RollData) => {
     const newRolls = job.rolls.map(r => r.id === updatedRoll.id ? updatedRoll : r);
     onUpdateJob({ ...job, rolls: newRolls });
+    try {
+      await dataService.updateRoll(updatedRoll);
+    } catch (error) {
+      console.error('Error updating roll in Supabase:', error);
+    }
   };
 
   const toggleRollSelection = (rollId: string, e: React.MouseEvent) => {
@@ -161,6 +168,44 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     a.download = `Fabric_Inspection_Report_${job.bookingId}.csv`;
     a.click();
   };
+
+  async function addRoll() {
+    try {
+      const { data, error } = await supabase
+        .from('rolls')
+        .insert([{
+          job_id: job.id,
+          roll_no: `R-${job.rolls.length + 1}`,
+          length: 0,
+          width: 58,
+          status: 'PENDING',
+          is_selected: true
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        const newRoll: RollData = {
+          id: data.id,
+          rollNo: data.roll_no,
+          dyeLot: data.dye_lot || '',
+          length: Number(data.length),
+          weight: Number(data.weight) || 0,
+          width: Number(data.width),
+          defects: [],
+          comments: data.comments || '',
+          status: data.status,
+          isSelected: data.is_selected
+        };
+        onUpdateJob({ ...job, rolls: [newRoll, ...job.rolls] });
+      }
+    } catch (error) {
+      console.error('Error adding roll:', error);
+      alert('Failed to add roll to Supabase');
+    }
+  }
 
   const renderEnvironmentStep = () => (
     <div className="space-y-6">
@@ -413,21 +458,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
               <p className="text-xs text-slate-500">Check box to select for inspection.</p>
             </div>
             <button
-              onClick={() => {
-                const newRoll: RollData = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  rollNo: `R-${job.rolls.length + 1}`,
-                  dyeLot: '',
-                  length: 0,
-                  weight: 0,
-                  width: 58,
-                  defects: [],
-                  comments: '',
-                  status: 'PENDING',
-                  isSelected: true
-                };
-                onUpdateJob({ ...job, rolls: [newRoll, ...job.rolls] }); // Add to top
-              }}
+              onClick={addRoll}
               className="text-sm bg-brand-600 text-white px-3 py-1.5 rounded font-bold flex items-center gap-1 shadow-sm"
             >
               <Plus size={14} /> Add
@@ -737,10 +768,16 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                       <div className="flex items-center gap-3">
                         <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const lastIndex = group.indices[group.indices.length - 1];
+                              const defectToRemove = roll.defects[lastIndex];
                               const newDefects = roll.defects.filter((_, i) => i !== lastIndex);
                               handleRollUpdate({ ...roll, defects: newDefects });
+                              try {
+                                await dataService.removeDefect(defectToRemove.id);
+                              } catch (error) {
+                                console.error('Error removing defect:', error);
+                              }
                             }}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-l-lg transition-colors"
                           >
@@ -750,9 +787,14 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                             {group.count}
                           </span>
                           <button
-                            onClick={() => {
-                              const newDefect = { ...group.defect, id: Math.random().toString(36).substr(2, 9) };
-                              handleRollUpdate({ ...roll, defects: [...roll.defects, newDefect] });
+                            onClick={async () => {
+                              const newDefectData = { ...group.defect, id: Math.random().toString(36).substr(2, 9) };
+                              try {
+                                const savedDefect = await dataService.addDefect(roll.id, newDefectData);
+                                handleRollUpdate({ ...roll, defects: [...roll.defects, savedDefect] });
+                              } catch (error) {
+                                console.error('Error adding defect:', error);
+                              }
                             }}
                             className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-100 rounded-r-lg transition-colors"
                           >
@@ -760,9 +802,18 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                           </button>
                         </div>
                         <button
-                          onClick={() => {
-                            const newDefects = roll.defects.filter((_, i) => !group.indices.includes(i));
+                          onClick={async () => {
+                            const indicesToRemove = group.indices;
+                            const defectsToRemove = roll.defects.filter((_, i) => indicesToRemove.includes(i));
+                            const newDefects = roll.defects.filter((_, i) => !indicesToRemove.includes(i));
                             handleRollUpdate({ ...roll, defects: newDefects });
+                            try {
+                              for (const d of defectsToRemove) {
+                                await dataService.removeDefect(d.id);
+                              }
+                            } catch (error) {
+                              console.error('Error removing defects:', error);
+                            }
                           }}
                           title="Delete all"
                           className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-all"
@@ -787,9 +838,14 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
               </h3>
               <DefectInput
                 defectCounts={defectCounts}
-                onAdd={(d) => {
-                  handleRollUpdate({ ...roll, defects: [...roll.defects, d] });
-                  incrementDefectCount(d.name);
+                onAdd={async (d) => {
+                  try {
+                    const savedDefect = await dataService.addDefect(roll.id, d);
+                    handleRollUpdate({ ...roll, defects: [...roll.defects, savedDefect] });
+                    incrementDefectCount(d.name);
+                  } catch (error) {
+                    console.error('Error adding defect:', error);
+                  }
                 }}
               />
             </div>

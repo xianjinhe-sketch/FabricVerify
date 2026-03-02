@@ -1,44 +1,121 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Inspector, Booking } from '../types';
-import { Users, Calendar, Mail, Phone, Wrench, BadgeCheck, Briefcase } from 'lucide-react';
+import { Users, Calendar, Mail, Phone, Wrench, BadgeCheck, Briefcase, Loader2 } from 'lucide-react';
+import { supabase } from '../services/supabase';
 
 const CSDashboard: React.FC = () => {
   const [view, setView] = useState<'SCHEDULE' | 'INSPECTORS'>('SCHEDULE');
+  const [loading, setLoading] = useState(true);
 
-  // Mock Data
-  const [inspectors, setInspectors] = useState<Inspector[]>([
-    { id: '1', name: 'John Doe', phone: '123-456', email: 'john@test.com', skills: ['Knits', 'Wovens'], equipment: ['Tape', 'Camera'] },
-    { id: '2', name: 'Jane Smith', phone: '987-654', email: 'jane@test.com', skills: ['Denim'], equipment: ['Laptop'] }
-  ]);
-  
-  const [bookings] = useState<Booking[]>([
-    { id: '1', clientName: 'Zara Inc', fabricInfo: 'Cotton Poplin', inspectionDate: '2023-11-30', requirements: '', status: 'PENDING' },
-    { id: '2', clientName: 'H&M', fabricInfo: 'Viscose Rayon', inspectionDate: '2023-12-05', requirements: '', status: 'CONFIRMED', assignedInspectorId: '1' }
-  ]);
+  // Real Data from Supabase
+  const [inspectors, setInspectors] = useState<Inspector[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const { data: inspectorsData, error: inspectorsError } = await supabase
+        .from('inspectors')
+        .select('*');
+      
+      if (inspectorsError) throw inspectorsError;
+      setInspectors(inspectorsData || []);
+
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (bookingsError) throw bookingsError;
+      
+      // Map DB fields to component types if necessary
+      const mappedBookings = (bookingsData || []).map(b => ({
+        id: b.id,
+        clientName: b.client_name,
+        fabricInfo: b.fabric_info,
+        inspectionDate: b.inspection_date,
+        requirements: b.requirements,
+        status: b.status,
+        assignedInspectorId: b.assigned_inspector_id
+      }));
+      setBookings(mappedBookings);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      alert('Failed to load data from Supabase');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [newInspector, setNewInspector] = useState<{name: string, phone: string, email: string, skills: string, equipment: string}>({ 
     name: '', phone: '', email: '', skills: '', equipment: '' 
   });
 
-  const addInspector = () => {
+  const addInspector = async () => {
     if (newInspector.name) {
       const skillsArray = newInspector.skills.split(',').map(s => s.trim()).filter(s => s !== '');
       const equipmentArray = newInspector.equipment.split(',').map(s => s.trim()).filter(s => s !== '');
 
-      setInspectors([
-        ...inspectors, 
-        { 
-          id: Math.random().toString(), 
-          name: newInspector.name,
-          phone: newInspector.phone,
-          email: newInspector.email,
-          skills: skillsArray,
-          equipment: equipmentArray
+      try {
+        const { data, error } = await supabase
+          .from('inspectors')
+          .insert([{
+            name: newInspector.name,
+            phone: newInspector.phone,
+            email: newInspector.email,
+            skills: skillsArray,
+            equipment: equipmentArray
+          }])
+          .select();
+
+        if (error) throw error;
+        
+        if (data) {
+          setInspectors([...inspectors, data[0]]);
+          setNewInspector({ name: '', phone: '', email: '', skills: '', equipment: '' });
         }
-      ]);
-      setNewInspector({ name: '', phone: '', email: '', skills: '', equipment: '' });
+      } catch (error) {
+        console.error('Error adding inspector:', error);
+        alert('Failed to add inspector');
+      }
     }
   };
+
+  const assignInspector = async (bookingId: string, inspectorId: string) => {
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ 
+          assigned_inspector_id: inspectorId || null,
+          status: inspectorId ? 'CONFIRMED' : 'PENDING'
+        })
+        .eq('id', bookingId);
+
+      if (error) throw error;
+      
+      setBookings(bookings.map(b => 
+        b.id === bookingId 
+          ? { ...b, assignedInspectorId: inspectorId, status: inspectorId ? 'CONFIRMED' : 'PENDING' } 
+          : b
+      ));
+    } catch (error) {
+      console.error('Error assigning inspector:', error);
+      alert('Failed to assign inspector');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="animate-spin text-brand-600" size={32} />
+        <span className="ml-2 text-slate-500">Loading Dashboard...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -81,10 +158,14 @@ const CSDashboard: React.FC = () => {
                      </span>
                   </td>
                   <td className="p-4">
-                    <select className="border rounded p-1 text-sm bg-white">
+                    <select 
+                      className="border rounded p-1 text-sm bg-white"
+                      value={b.assignedInspectorId || ''}
+                      onChange={(e) => assignInspector(b.id, e.target.value)}
+                    >
                       <option value="">Select Inspector</option>
                       {inspectors.map(i => (
-                        <option key={i.id} value={i.id} selected={b.assignedInspectorId === i.id}>
+                        <option key={i.id} value={i.id}>
                           {i.name}
                         </option>
                       ))}
