@@ -93,6 +93,7 @@ async function startServer() {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json',
+        'User-Agent': 'AI-Studio-Sync'
       };
 
       // 1. Get branch ref
@@ -108,24 +109,39 @@ async function startServer() {
 
       // 3. Read files and create blobs
       const filesToSync: {fullPath: string, relPath: string}[] = [];
-      function getFiles(dir: string, baseDir: string) {
+      const baseDir = process.cwd();
+      
+      function getFiles(dir: string) {
         const files = fs.readdirSync(dir);
         for (const file of files) {
           const fullPath = path.join(dir, file);
           const relPath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
-          const stat = fs.statSync(fullPath);
+          
+          let stat;
+          try {
+            stat = fs.statSync(fullPath);
+          } catch (e) {
+            continue; // Skip files we can't access
+          }
+
           if (stat.isDirectory()) {
-            if (!['node_modules', '.git', 'dist', '.agent'].includes(file)) {
-              getFiles(fullPath, baseDir);
+            // Exclude system and build directories
+            const isSystemDir = dir === '/' && ['bin', 'boot', 'dev', 'etc', 'home', 'lib', 'lib64', 'media', 'mnt', 'opt', 'proc', 'root', 'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var'].includes(file);
+            const isIgnoredDir = ['node_modules', '.git', 'dist'].includes(file);
+            
+            if (!isSystemDir && !isIgnoredDir) {
+              getFiles(fullPath);
             }
           } else {
-            if (!['package-lock.json', '.env', '.DS_Store', 'server.cjs'].includes(file)) {
+            // Exclude sensitive or lock files
+            const isIgnoredFile = ['.env', '.DS_Store', 'package-lock.json', 'server.cjs'].includes(file);
+            if (!isIgnoredFile) {
               filesToSync.push({ fullPath, relPath });
             }
           }
         }
       }
-      getFiles(__dirname, __dirname);
+      getFiles(baseDir);
 
       const tree = [];
       for (const file of filesToSync) {
@@ -135,7 +151,7 @@ async function startServer() {
           headers,
           body: JSON.stringify({ content, encoding: 'base64' })
         });
-        if (!resBlob.ok) throw new Error(`Failed to create blob for ${file.relPath}`);
+        if (!resBlob.ok) throw new Error(`Failed to create blob for ${file.relPath}: ${await resBlob.text()}`);
         const blobData = await resBlob.json();
         tree.push({
           path: file.relPath,
@@ -145,13 +161,16 @@ async function startServer() {
         });
       }
 
-      // 4. Create tree
+      // 4. Create tree (Clean sync: no base_tree to ensure repo matches local state)
       const resTree = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/trees`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ base_tree: baseTreeSha, tree })
+        body: JSON.stringify({ tree })
       });
-      if (!resTree.ok) throw new Error('Failed to create tree');
+      if (!resTree.ok) {
+        const errData = await resTree.json();
+        throw new Error(`GitHub Tree Error: ${errData.message || JSON.stringify(errData)}`);
+      }
       const treeData = await resTree.json();
 
       // 5. Create commit

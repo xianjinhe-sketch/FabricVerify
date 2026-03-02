@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Camera, FileText, Upload, Plus, Trash2, ChevronRight, Save, Download, Printer, CheckSquare, Square, ScanLine, BadgeCheck, ClipboardCheck } from 'lucide-react';
+import { Camera, FileText, Upload, Plus, Minus, Trash2, ChevronRight, Save, Download, Printer, CheckSquare, Square, ScanLine, BadgeCheck, ClipboardCheck } from 'lucide-react';
 import { InspectionJob, RollData, DEFECT_TYPES, Defect, FabricGroup, FabricType } from '../types';
 import { parsePackingList, parseWeight, analyzeLighting } from '../services/geminiService';
 import { calculateRollStats as calcRollStats, suggestPointsFromLength, getThresholdByGroup, getFabricGroupMapping, getBowSkewTolerance } from '../utils/scoring';
+import { exportExcelReport } from '../utils/exportExcel';
 
 interface InspectorViewProps {
   job: InspectionJob;
@@ -507,6 +508,22 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     if (!roll) return null;
     const stats = calculateRollStats(roll);
 
+    const groupedDefects = (() => {
+      const groups: Record<string, { count: number, defect: Defect, indices: number[] }> = {};
+      roll.defects.forEach((defect, idx) => {
+        const key = `${defect.name}|${defect.points}|${defect.isContinuous}|${defect.isHole}`;
+        if (!groups[key]) {
+          groups[key] = { count: 0, defect: { ...defect }, indices: [] };
+        }
+        groups[key].count++;
+        groups[key].indices.push(idx);
+        if (!groups[key].defect.imageUrl && defect.imageUrl) {
+          groups[key].defect.imageUrl = defect.imageUrl;
+        }
+      });
+      return Object.values(groups);
+    })();
+
     return (
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 overflow-y-auto pt-4 pb-20 md:pt-10 transition-all">
         <div className="max-w-xl mx-auto bg-slate-50 min-h-full md:min-h-[90vh] md:rounded-t-3xl shadow-2xl relative overflow-hidden flex flex-col">
@@ -683,7 +700,7 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
               </div>
 
               <div className="space-y-3">
-                {roll.defects.length === 0 ? (
+                {groupedDefects.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 shadow-inner">
                     <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
                       <ClipboardCheck className="text-slate-300" size={24} />
@@ -691,42 +708,68 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                     <p className="text-slate-400 text-sm font-medium">Ready for inspection entry.</p>
                   </div>
                 ) : (
-                  roll.defects.map((defect, idx) => (
+                  groupedDefects.map((group, idx) => (
                     <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center group active:scale-[0.98] transition-all">
                       <div className="flex items-center gap-4">
                         <div className="relative">
-                          {defect.imageUrl ? (
-                            <img src={defect.imageUrl} alt="Defect" className="w-16 h-16 rounded-xl object-cover border-2 border-slate-50 shadow-sm" />
+                          {group.defect.imageUrl ? (
+                            <img src={group.defect.imageUrl} alt="Defect" className="w-16 h-16 rounded-xl object-cover border-2 border-slate-50 shadow-sm" />
                           ) : (
                             <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300">
                               <Camera size={24} />
                             </div>
                           )}
-                          <div className={`absolute -top-2 -left-2 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center text-[10px] font-black shadow-md ${defect.points >= 3 ? 'bg-red-500 text-white' : 'bg-yellow-400 text-yellow-900'}`}>
-                            {defect.points}
+                          <div className={`absolute -top-2 -left-2 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center text-[10px] font-black shadow-md ${group.defect.points >= 3 ? 'bg-red-500 text-white' : 'bg-yellow-400 text-yellow-900'}`}>
+                            {group.defect.points}
                           </div>
                         </div>
                         <div>
-                          <div className="font-black text-slate-800 text-sm mb-0.5">{defect.name}</div>
+                          <div className="font-black text-slate-800 text-sm mb-0.5">{group.defect.name}</div>
                           <div className="flex flex-wrap gap-1.5 mt-1">
                             <span className="text-[9px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest">
-                              {defect.points} POINT{defect.points > 1 ? 'S' : ''}
+                              {group.defect.points} POINT{group.defect.points > 1 ? 'S' : ''}
                             </span>
-                            {defect.isContinuous && <span className="text-[9px] bg-indigo-50 text-indigo-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest">Continuous</span>}
-                            {defect.isHole && <span className="text-[9px] bg-red-50 text-red-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest border border-red-100">Hole</span>}
+                            {group.defect.isContinuous && <span className="text-[9px] bg-indigo-50 text-indigo-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest">Continuous</span>}
+                            {group.defect.isHole && <span className="text-[9px] bg-red-50 text-red-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest border border-red-100">Hole</span>}
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          const newDefects = roll.defects.filter((_, i) => i !== idx);
-                          handleRollUpdate({ ...roll, defects: newDefects });
-                        }}
-                        title="Delete this defect log"
-                        className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-3 rounded-2xl transition-all"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200">
+                          <button
+                            onClick={() => {
+                              const lastIndex = group.indices[group.indices.length - 1];
+                              const newDefects = roll.defects.filter((_, i) => i !== lastIndex);
+                              handleRollUpdate({ ...roll, defects: newDefects });
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-l-lg transition-colors"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="w-8 text-center font-bold text-slate-700 text-sm">
+                            {group.count}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const newDefect = { ...group.defect, id: Math.random().toString(36).substr(2, 9) };
+                              handleRollUpdate({ ...roll, defects: [...roll.defects, newDefect] });
+                            }}
+                            className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-100 rounded-r-lg transition-colors"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newDefects = roll.defects.filter((_, i) => !group.indices.includes(i));
+                            handleRollUpdate({ ...roll, defects: newDefects });
+                          }}
+                          title="Delete all"
+                          className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-all"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -777,12 +820,20 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-800">Summary ({selectedRolls.length} Rolls)</h2>
-          <button
-            onClick={exportReport}
-            className="text-sm bg-brand-50 text-brand-700 px-3 py-2 rounded font-bold border border-brand-100 flex items-center gap-2"
-          >
-            <Download size={16} /> CSV
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={exportReport}
+              className="text-sm bg-brand-50 text-brand-700 px-3 py-2 rounded font-bold border border-brand-100 flex items-center gap-2"
+            >
+              <Download size={16} /> CSV
+            </button>
+            <button
+              onClick={() => exportExcelReport(job)}
+              className="text-sm bg-green-50 text-green-700 px-3 py-2 rounded font-bold border border-green-100 flex items-center gap-2"
+            >
+              <Download size={16} /> Excel
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-slate-200">
