@@ -91,13 +91,23 @@ export const dataService = {
         points: defect.points,
         image_url: defect.imageUrl,
         is_continuous: defect.isContinuous,
-        is_hole: defect.isHole
+        is_hole: defect.isHole,
+        defect_length: defect.defectLength
       }])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    
+    return {
+      id: data.id,
+      name: data.name,
+      points: data.points,
+      imageUrl: data.image_url,
+      isContinuous: data.is_continuous,
+      isHole: data.is_hole,
+      defectLength: data.defect_length ? Number(data.defect_length) : undefined
+    } as Defect;
   },
 
   async removeDefect(defectId: string) {
@@ -211,7 +221,8 @@ export const dataService = {
           points: d.points,
           imageUrl: d.image_url,
           isContinuous: d.is_continuous,
-          isHole: d.is_hole
+          isHole: d.is_hole,
+          defectLength: d.defect_length ? Number(d.defect_length) : undefined
         }))
       }))
     };

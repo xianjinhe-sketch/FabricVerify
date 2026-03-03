@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS defects (
   image_url TEXT,
   is_continuous BOOLEAN DEFAULT false,
   is_hole BOOLEAN DEFAULT false,
+  defect_length NUMERIC,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
