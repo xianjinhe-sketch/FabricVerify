@@ -24,6 +24,14 @@ export const getFabricGroupMapping = (type: FabricType) => {
             [FabricGroup.GROUP_D]: 'Linen, Linen/Cotton, Rayon Blends'
         };
     }
+    if (type === FabricType.OTHER) {
+        return {
+            [FabricGroup.GROUP_A]: 'Standard Group A',
+            [FabricGroup.GROUP_B]: 'Standard Group B',
+            [FabricGroup.GROUP_C]: 'Standard Group C',
+            [FabricGroup.GROUP_D]: 'Standard Group D'
+        };
+    }
     return {
         [FabricGroup.GROUP_A]: 'Synthetics, Worsted Woolens, Silk Taffeta',
         [FabricGroup.GROUP_B]: 'Poplin, Oxford, Light weight Denim',
@@ -38,6 +46,9 @@ export const getFabricGroupMapping = (type: FabricType) => {
 export const getBowSkewTolerance = (type: FabricType, isPrint: boolean): string => {
     if (type === FabricType.KNITTED) {
         return isPrint ? '2%' : '5%'; // Knitted solid 5%
+    }
+    if (type === FabricType.OTHER) {
+        return isPrint ? '2%' : '3%'; // Default to woven
     }
     return isPrint ? '2%' : '3%'; // Woven solid 3%
 };

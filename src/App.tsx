@@ -18,7 +18,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchActiveJob();
-  }, []);
+  }, [currentRole]);
 
   const fetchActiveJob = async () => {
     setLoading(true);

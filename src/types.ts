@@ -9,7 +9,8 @@ export enum Role {
 
 export enum FabricType {
   WOVEN = 'WOVEN',
-  KNITTED = 'KNITTED'
+  KNITTED = 'KNITTED',
+  OTHER = 'OTHER'
 }
 
 export enum FabricGroup {
@@ -32,7 +33,18 @@ export interface Booking {
   id: string;
   clientName: string;
   fabricInfo: string;
+  fabricType?: FabricType;
   inspectionDate: string;
+  shipmentDate?: string;
+  orderQuantity?: string;
+  factoryName?: string;
+  factoryAddress?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  productImages?: string[];
+  actualInspectionDate?: string;
+  reportNumber?: string;
   requirements: string;
   status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
   assignedInspectorId?: string;
@@ -54,7 +66,13 @@ export interface ClientStandard {
   weightTolerance: string;
   widthTolerance: string;
   colorTolerance: string;
+  quantityTolerance: string;
+  lengthTolerance: string;
+  bowSkewSolid: string;
+  bowSkewPrint: string;
   otherStandards: string;
+  maxAcceptablePointPerRoll?: string;
+  maxShipmentPointCount?: string;
 }
 
 export interface Defect {
@@ -90,6 +108,21 @@ export interface InspectionJob {
   id: string;
   bookingId: string;
   clientName?: string;
+  bookingDetails?: {
+    fabricInfo?: string;
+    fabricType?: FabricType;
+    inspectionDate?: string;
+    shipmentDate?: string;
+    orderQuantity?: string;
+    factoryName?: string;
+    factoryAddress?: string;
+    contactPerson?: string;
+    contactPhone?: string;
+    contactEmail?: string;
+    productImages?: string[];
+    actualInspectionDate?: string;
+    reportNumber?: string;
+  };
   fabricType: FabricType;
   fabricGroup?: FabricGroup;
   environmentPhotos: Record<string, string>;

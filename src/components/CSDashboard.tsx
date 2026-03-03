@@ -40,7 +40,18 @@ const CSDashboard: React.FC = () => {
         id: b.id,
         clientName: b.client_name,
         fabricInfo: b.fabric_info,
+        fabricType: b.fabric_type,
         inspectionDate: b.inspection_date,
+        shipmentDate: b.shipment_date,
+        orderQuantity: b.order_quantity,
+        factoryName: b.factory_name,
+        factoryAddress: b.factory_address,
+        contactPerson: b.contact_person,
+        contactPhone: b.contact_phone,
+        contactEmail: b.contact_email,
+        productImages: b.product_images,
+        actualInspectionDate: b.actual_inspection_date,
+        reportNumber: b.report_number,
         requirements: b.requirements,
         status: b.status,
         assignedInspectorId: b.assigned_inspector_id
@@ -88,9 +99,28 @@ const CSDashboard: React.FC = () => {
     }
   };
 
-  const assignInspector = async (bookingId: string, inspectorId: string) => {
+  const updateBookingDetails = async (bookingId: string, field: string, value: any) => {
     try {
       const { error } = await supabase
+        .from('bookings')
+        .update({ [field]: value })
+        .eq('id', bookingId);
+
+      if (error) throw error;
+
+      setBookings(bookings.map(b => 
+        b.id === bookingId ? { ...b, [field === 'actual_inspection_date' ? 'actualInspectionDate' : 'reportNumber']: value } : b
+      ));
+    } catch (error) {
+      console.error('Error updating booking details:', error);
+      alert('Failed to update booking details');
+    }
+  };
+
+  const assignInspector = async (bookingId: string, inspectorId: string) => {
+    try {
+      // 1. Update booking assignment
+      const { error: bookingError } = await supabase
         .from('bookings')
         .update({ 
           assigned_inspector_id: inspectorId || null,
@@ -98,13 +128,42 @@ const CSDashboard: React.FC = () => {
         })
         .eq('id', bookingId);
 
-      if (error) throw error;
+      if (bookingError) throw bookingError;
+
+      // 2. If assigning an inspector, ensure an inspection job exists
+      if (inspectorId) {
+        const { data: existingJob } = await supabase
+          .from('inspection_jobs')
+          .select('id')
+          .eq('booking_id', bookingId)
+          .maybeSingle();
+
+        if (!existingJob) {
+          const booking = bookings.find(b => b.id === bookingId);
+          const { error: jobError } = await supabase
+            .from('inspection_jobs')
+            .insert([{
+              booking_id: bookingId,
+              status: 'DRAFT',
+              fabric_type: booking?.fabricType || 'WOVEN',
+              pass_threshold: 20
+            }]);
+          
+          if (jobError) {
+            console.error('Error creating inspection job:', jobError);
+          }
+        }
+      }
       
       setBookings(bookings.map(b => 
         b.id === bookingId 
           ? { ...b, assignedInspectorId: inspectorId, status: inspectorId ? 'CONFIRMED' : 'PENDING' } 
           : b
       ));
+      
+      if (inspectorId) {
+        alert('Inspector assigned and job created successfully!');
+      }
     } catch (error) {
       console.error('Error assigning inspector:', error);
       alert('Failed to assign inspector');
@@ -151,12 +210,14 @@ const CSDashboard: React.FC = () => {
       </div>
 
       {view === 'SCHEDULE' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-left text-sm">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 text-slate-700 border-b">
               <tr>
                 <th className="p-4">Client</th>
-                <th className="p-4">Date</th>
+                <th className="p-4">Req. Date</th>
+                <th className="p-4">Actual Date</th>
+                <th className="p-4">Report #</th>
                 <th className="p-4">Fabric</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Standards</th>
@@ -166,9 +227,31 @@ const CSDashboard: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {bookings.map(b => (
                 <tr key={b.id}>
-                  <td className="p-4 font-medium">{b.clientName}</td>
+                  <td className="p-4">
+                    <div className="font-medium truncate max-w-[120px]" title={b.clientName}>{b.clientName}</div>
+                    <div className="text-[10px] text-slate-400 uppercase truncate max-w-[120px]" title={b.factoryName}>{b.factoryName}</div>
+                  </td>
                   <td className="p-4">{b.inspectionDate}</td>
-                  <td className="p-4 text-slate-500">{b.fabricInfo}</td>
+                  <td className="p-4">
+                    <input 
+                      type="date" 
+                      className="border rounded p-1 text-xs bg-white"
+                      value={b.actualInspectionDate || ''}
+                      onChange={(e) => updateBookingDetails(b.id, 'actual_inspection_date', e.target.value)}
+                    />
+                  </td>
+                  <td className="p-4">
+                    <input 
+                      type="text" 
+                      placeholder="Report #"
+                      className="border rounded p-1 text-xs bg-white w-24"
+                      value={b.reportNumber || ''}
+                      onChange={(e) => updateBookingDetails(b.id, 'report_number', e.target.value)}
+                    />
+                  </td>
+                  <td className="p-4 text-slate-500">
+                    <div className="truncate max-w-[100px]" title={b.fabricInfo}>{b.fabricInfo}</div>
+                  </td>
                   <td className="p-4">
                      <span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                        {b.status}
@@ -357,6 +440,26 @@ const CSDashboard: React.FC = () => {
                         <div>
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Color Tolerance</label>
                           <div className="text-sm font-bold text-slate-700">{s.colorTolerance || 'N/A'}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Qty Tol.</label>
+                            <div className="text-sm font-bold text-slate-700">{s.quantityTolerance || 'N/A'}</div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Length Tol.</label>
+                            <div className="text-sm font-bold text-slate-700">{s.lengthTolerance || 'N/A'}</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bow/Skew Solid</label>
+                            <div className="text-sm font-bold text-slate-700">{s.bowSkewSolid || 'N/A'}</div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bow/Skew Print</label>
+                            <div className="text-sm font-bold text-slate-700">{s.bowSkewPrint || 'N/A'}</div>
+                          </div>
                         </div>
                         {s.otherStandards && (
                           <div>

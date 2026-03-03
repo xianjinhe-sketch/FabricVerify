@@ -7,19 +7,37 @@ export const dataService = {
       .from('inspection_jobs')
       .select(`
         *,
-        bookings (client_name),
+        bookings (
+          client_name,
+          fabric_info,
+          fabric_type,
+          inspection_date,
+          shipment_date,
+          order_quantity,
+          factory_name,
+          factory_address,
+          contact_person,
+          contact_phone,
+          contact_email,
+          product_images,
+          actual_inspection_date,
+          report_number
+        ),
         rolls (
           *,
           defects (*)
         )
       `)
+      .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (jobError) {
-      if (jobError.code === 'PGRST116') return null;
+      console.error('Error fetching active job:', jobError);
       throw jobError;
     }
+
+    if (!jobData) return null;
 
     return this.mapJobFromDB(jobData);
   },
@@ -108,6 +126,10 @@ export const dataService = {
       weightTolerance: s.weight_tolerance,
       widthTolerance: s.width_tolerance,
       colorTolerance: s.color_tolerance,
+      quantityTolerance: s.quantity_tolerance,
+      lengthTolerance: s.length_tolerance,
+      bowSkewSolid: s.bow_skew_solid,
+      bowSkewPrint: s.bow_skew_print,
       otherStandards: s.other_standards
     }));
   },
@@ -122,6 +144,10 @@ export const dataService = {
         weight_tolerance: standard.weightTolerance,
         width_tolerance: standard.widthTolerance,
         color_tolerance: standard.colorTolerance,
+        quantity_tolerance: standard.quantityTolerance,
+        length_tolerance: standard.lengthTolerance,
+        bow_skew_solid: standard.bowSkewSolid,
+        bow_skew_print: standard.bowSkewPrint,
         other_standards: standard.otherStandards
       }, { onConflict: 'client_name,fabric_type' })
       .select()
@@ -132,10 +158,26 @@ export const dataService = {
   },
 
   mapJobFromDB(jobData: any): InspectionJob {
+    const booking = jobData.bookings || {};
     return {
       id: jobData.id,
       bookingId: jobData.booking_id,
-      clientName: jobData.bookings?.client_name,
+      clientName: booking.client_name,
+      bookingDetails: {
+        fabricInfo: booking.fabric_info,
+        fabricType: booking.fabric_type,
+        inspectionDate: booking.inspection_date,
+        shipmentDate: booking.shipment_date,
+        orderQuantity: booking.order_quantity,
+        factoryName: booking.factory_name,
+        factoryAddress: booking.factory_address,
+        contactPerson: booking.contact_person,
+        contactPhone: booking.contact_phone,
+        contactEmail: booking.contact_email,
+        productImages: booking.product_images || [],
+        actualInspectionDate: booking.actual_inspection_date,
+        reportNumber: booking.report_number
+      },
       fabricType: jobData.fabric_type,
       fabricGroup: jobData.fabric_group,
       environmentPhotos: jobData.environment_photos || {},

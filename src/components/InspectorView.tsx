@@ -293,13 +293,13 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">Fabric Type (Inspection Protocol)</label>
             <div className="flex gap-2">
-              {[FabricType.WOVEN, FabricType.KNITTED].map(type => (
+              {[FabricType.WOVEN, FabricType.KNITTED, FabricType.OTHER].map(type => (
                 <button
                   key={type}
                   onClick={() => onUpdateJob({ ...job, fabricType: type })}
                   className={`flex-1 py-2 rounded text-xs font-bold border transition-all ${job.fabricType === type ? 'bg-brand-600 text-white border-brand-700 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
                 >
-                  {type === FabricType.WOVEN ? 'WOVEN (ITS-IP-7401)' : 'KNITTED (ITS-IP-7402)'}
+                  {type === FabricType.WOVEN ? 'WOVEN (ITS-IP-7401)' : type === FabricType.KNITTED ? 'KNITTED (ITS-IP-7402)' : 'OTHER'}
                 </button>
               ))}
             </div>
@@ -349,6 +349,30 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                 <div className="bg-white p-1.5 rounded border border-brand-100">
                   <span className="text-slate-400 block uppercase">Color Tol.</span>
                   <span className="font-bold text-slate-700">{clientStandards.colorTolerance || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Qty Tol.</span>
+                  <span className="font-bold text-slate-700">{clientStandards.quantityTolerance || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Length Tol.</span>
+                  <span className="font-bold text-slate-700">{clientStandards.lengthTolerance || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Bow/Skew Solid</span>
+                  <span className="font-bold text-slate-700">{clientStandards.bowSkewSolid || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Bow/Skew Print</span>
+                  <span className="font-bold text-slate-700">{clientStandards.bowSkewPrint || 'N/A'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Max Pts/Roll</span>
+                  <span className="font-bold text-slate-700">{clientStandards.maxAcceptablePointPerRoll || '28'}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-brand-100">
+                  <span className="text-slate-400 block uppercase">Max Pts/Shipment</span>
+                  <span className="font-bold text-slate-700">{clientStandards.maxShipmentPointCount || '20'}</span>
                 </div>
                 {clientStandards.otherStandards && (
                   <div className="bg-white p-1.5 rounded border border-brand-100 col-span-2">
@@ -1000,8 +1024,57 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     );
   };
 
+  const renderBookingInfo = () => {
+    if (!job.bookingDetails) return null;
+    const bd = job.bookingDetails;
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck size={16} className="text-brand-600" />
+            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Booking Information</span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref: {job.bookingId.slice(0, 8)}</span>
+        </div>
+        <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px] font-bold">Factory Name</span>
+            <span className="font-bold text-slate-700">{bd.factoryName || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px] font-bold">Order Qty</span>
+            <span className="font-bold text-slate-700">{bd.orderQuantity || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px] font-bold">Shipment Date</span>
+            <span className="font-bold text-slate-700">{bd.shipmentDate || 'N/A'}</span>
+          </div>
+          <div className="md:col-span-2">
+            <span className="text-slate-400 block uppercase text-[10px] font-bold">Factory Address</span>
+            <span className="font-bold text-slate-700">{bd.factoryAddress || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px] font-bold">Contact</span>
+            <span className="font-bold text-slate-700">{bd.contactPerson} ({bd.contactPhone})</span>
+          </div>
+          {bd.productImages && bd.productImages.length > 0 && (
+            <div className="col-span-full">
+              <span className="text-slate-400 block uppercase text-[10px] font-bold mb-2">Product Images</span>
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {bd.productImages.map((img, idx) => (
+                  <img key={idx} src={img} alt="Product" className="h-20 w-20 object-cover rounded border" />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="pb-20">
+      {renderBookingInfo()}
       {/* Reviewer Feedback Alert */}
       {job.status === 'REJECTED' && job.reviewerComments && (
         <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg shadow-sm">
