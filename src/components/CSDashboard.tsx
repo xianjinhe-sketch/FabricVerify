@@ -79,8 +79,8 @@ const CSDashboard: React.FC = () => {
           .from('inspectors')
           .insert([{
             name: newInspector.name,
-            phone: newInspector.phone,
-            email: newInspector.email,
+            phone: newInspector.phone || null,
+            email: newInspector.email || null,
             skills: skillsArray,
             equipment: equipmentArray
           }])
