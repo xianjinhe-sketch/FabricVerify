@@ -130,7 +130,9 @@ export const dataService = {
       lengthTolerance: s.length_tolerance,
       bowSkewSolid: s.bow_skew_solid,
       bowSkewPrint: s.bow_skew_print,
-      otherStandards: s.other_standards
+      otherStandards: s.other_standards,
+      maxAcceptablePointPerRoll: s.max_acceptable_point_per_roll,
+      maxShipmentPointCount: s.max_shipment_point_count
     }));
   },
 
@@ -148,7 +150,9 @@ export const dataService = {
         length_tolerance: standard.lengthTolerance,
         bow_skew_solid: standard.bowSkewSolid,
         bow_skew_print: standard.bowSkewPrint,
-        other_standards: standard.otherStandards
+        other_standards: standard.otherStandards,
+        max_acceptable_point_per_roll: standard.maxAcceptablePointPerRoll,
+        max_shipment_point_count: standard.maxShipmentPointCount
       }, { onConflict: 'client_name,fabric_type' })
       .select()
       .single();

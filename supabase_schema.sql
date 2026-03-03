@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   client_name TEXT NOT NULL,
   fabric_info TEXT,
-  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED')),
+  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED', 'OTHER')),
   inspection_date DATE,
   shipment_date DATE,
   order_quantity TEXT,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE TABLE IF NOT EXISTS inspection_jobs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   booking_id UUID REFERENCES bookings(id) ON DELETE CASCADE,
-  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED')),
+  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED', 'OTHER')),
   fabric_group TEXT CHECK (fabric_group IN ('GROUP_A', 'GROUP_B', 'GROUP_C', 'GROUP_D')),
   environment_photos JSONB DEFAULT '{}'::jsonb,
   packing_list_photos TEXT[] DEFAULT '{}',
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS client_standards (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   client_id UUID REFERENCES profiles(id),
   client_name TEXT, -- Fallback if not using profiles yet
-  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED')),
+  fabric_type TEXT CHECK (fabric_type IN ('WOVEN', 'KNITTED', 'OTHER')),
   sampling_standard TEXT,
   weight_tolerance TEXT,
   width_tolerance TEXT,
@@ -109,6 +109,8 @@ CREATE TABLE IF NOT EXISTS client_standards (
   bow_skew_solid TEXT,
   bow_skew_print TEXT,
   other_standards TEXT,
+  max_acceptable_point_per_roll TEXT,
+  max_shipment_point_count TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(client_name, fabric_type)
 );
