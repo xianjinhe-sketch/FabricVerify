@@ -219,30 +219,30 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
   const renderEnvironmentStep = () => (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-800">1. Environment Photos</h2>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {['gate', 'workshop', 'machine', 'lighting'].map((type) => (
-          <div key={type} className="border-2 border-dashed border-slate-300 rounded-lg p-4 flex flex-col items-center justify-center bg-white relative group">
-            <span className="capitalize font-semibold mb-2">{type}</span>
+          <div key={type} className="border-2 border-dashed border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center bg-white relative group">
+            <span className="capitalize font-semibold text-xs mb-2">{type}</span>
             {job.environmentPhotos[type as keyof typeof job.environmentPhotos] ? (
               <div className="relative w-full">
                 <img
                   src={job.environmentPhotos[type as keyof typeof job.environmentPhotos]}
                   alt={type}
-                  className="h-32 w-full object-cover rounded mb-2"
+                  className="h-24 w-full object-cover rounded mb-2"
                 />
                 {type === 'lighting' && (
                   <button
                     onClick={(e) => { e.preventDefault(); runLightingAnalysis(); }}
-                    className="absolute top-2 right-2 bg-brand-600 text-white p-1 rounded-full shadow-lg hover:bg-brand-700"
+                    className="absolute top-1 right-1 bg-brand-600 text-white p-1 rounded-full shadow-lg hover:bg-brand-700"
                     title="Run AI Light Detection"
                   >
-                    <ScanLine size={16} />
+                    <ScanLine size={14} />
                   </button>
                 )}
               </div>
             ) : (
-              <div className="h-32 w-full bg-slate-100 rounded mb-2 flex items-center justify-center text-slate-400">
-                <Camera size={32} />
+              <div className="h-24 w-full bg-slate-100 rounded mb-2 flex items-center justify-center text-slate-400">
+                <Camera size={24} />
               </div>
             )}
             <input
@@ -252,16 +252,16 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
               id={`file-${type}`}
               onChange={(e) => handleFileUpload(e, type as any)}
             />
-            <div className="flex flex-col w-full gap-2">
+            <div className="flex flex-col w-full gap-1">
               <label
                 htmlFor={`file-${type}`}
-                className="px-4 py-2 bg-brand-600 text-white rounded text-sm cursor-pointer hover:bg-brand-500 w-full text-center"
+                className="px-2 py-1.5 bg-brand-600 text-white rounded text-[10px] font-bold cursor-pointer hover:bg-brand-500 w-full text-center"
               >
-                {job.environmentPhotos[type as keyof typeof job.environmentPhotos] ? 'Retake Photo' : 'Upload Photo'}
+                {job.environmentPhotos[type as keyof typeof job.environmentPhotos] ? 'Retake' : 'Upload'}
               </label>
               {type === 'lighting' && job.lightingLux !== undefined && (
-                <div className={`text-[10px] font-bold text-center px-1 py-0.5 rounded ${job.lightingLux >= 1000 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  Detected: {job.lightingLux} Lux
+                <div className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${job.lightingLux >= 1000 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {job.lightingLux} Lux
                 </div>
               )}
             </div>
@@ -908,8 +908,9 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
                     const savedDefect = await dataService.addDefect(roll.id, d);
                     handleRollUpdate({ ...roll, defects: [...roll.defects, savedDefect] });
                     incrementDefectCount(d.name);
-                  } catch (error) {
+                  } catch (error: any) {
                     console.error('Error adding defect:', error);
+                    alert(`Failed to add defect: ${error.message || 'Unknown error'}. Please ensure your database schema is up to date.`);
                   }
                 }}
               />
