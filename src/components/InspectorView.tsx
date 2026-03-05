@@ -50,7 +50,6 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
   };
 
   const handleAddRoll = () => {
-    // Basic roll generation
     const newRollCount = job.rolls.filter(r => r.id.startsWith(`MANUAL-`)).length + 1;
     const newRoll: Omit<RollData, 'id'> = {
       rollNo: `MANUAL-${newRollCount}`,
@@ -169,7 +168,6 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     );
   };
 
-  // Render deeply nested form
   if (inspectingRollId) {
     return (
       <RollInspectionForm
@@ -181,7 +179,6 @@ const InspectorView: React.FC<InspectorViewProps> = ({ job, onUpdateJob }) => {
     );
   }
 
-  // Render Steps Form
   return (
     <>
       <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex justify-between items-center border border-slate-200">

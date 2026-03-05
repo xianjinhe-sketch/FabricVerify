@@ -89,10 +89,10 @@ export const dataService = {
         roll_id: rollId,
         name: defect.name,
         points: defect.points,
-        image_url: defect.imageUrl,
-        is_continuous: defect.isContinuous,
-        is_hole: defect.isHole,
-        defect_length: defect.defectLength
+        image_url: defect.imageUrl || null,
+        is_continuous: defect.isContinuous || false,
+        is_hole: defect.isHole || false,
+        defect_length: defect.defectLength || null
       }])
       .select()
       .single();
