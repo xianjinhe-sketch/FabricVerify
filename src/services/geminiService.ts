@@ -5,9 +5,9 @@ import { GoogleGenAI, Type } from "@google/genai";
  * 集中处理 Gemini 请求，直接在前端调用
  */
 async function callGemini(contents: any[], schema?: any) {
-  const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("Gemini API Key missing");
+    throw new Error("Gemini API Key missing. Please provide a valid API Key in Environment Variables.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -38,13 +38,13 @@ async function callGemini(contents: any[], schema?: any) {
     return response.text;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    
+
     const errorString = typeof error === 'string' ? error : JSON.stringify(error) + (error.message || '');
-    
+
     if (errorString.includes("leaked") || errorString.includes("PERMISSION_DENIED") || errorString.includes("API key not valid")) {
       throw new Error("您的 API Key 已被泄露或无效，已被 Google 禁用。\n\n解决办法：\n1. 前往 Google AI Studio (aistudio.google.com) 重新生成一个 API Key。\n2. 在 Vercel 的环境变量 (Environment Variables) 中更新 VITE_GEMINI_API_KEY。\n3. 重新部署您的 Vercel 项目。\n4. 切勿将 API Key 提交到 GitHub 公开仓库中。");
     }
-    
+
     if (errorString.includes("429") || errorString.includes("quota")) {
       throw new Error("API 请求频率过快或额度已用尽，请稍等 1 分钟后再试。");
     }
@@ -112,11 +112,12 @@ export const parsePackingList = async (base64Images: string[]): Promise<Partial<
       defects: [],
       comments: '',
       isSelected: false,
-      id: Math.random().toString(36).substr(2, 9)
+      id: crypto.randomUUID()
     }));
   } catch (error: any) {
     console.error("Gemini OCR Error:", error);
-    throw error; // 抛出错误让 UI 处理提示
+    // Wrap the error with a friendlier message so the UI toast looks clean
+    throw new Error(error.message || "Failed to parse packing list. Please make sure the image is clear and contains tabular roll data.");
   }
 };
 

@@ -1,0 +1,18 @@
+{
+    "manifest_version": 3,
+    "name": "Fabric Verify",
+    "version": "1.0.0",
+    "description": "Fabric Verify Extension",
+    "action": {
+        "default_popup": "index.html"
+    },
+    "permissions": [
+        "storage",
+        "activeTab",
+        "scripting"
+    ],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ]
+}

@@ -3,11 +3,12 @@ import { Inspector, Booking, ClientStandard } from '../types';
 import { Users, Calendar, Mail, Phone, Wrench, BadgeCheck, Briefcase, Loader2, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { dataService } from '../services/dataService';
+import toast from 'react-hot-toast';
 
 const CSDashboard: React.FC = () => {
   const [view, setView] = useState<'SCHEDULE' | 'INSPECTORS'>('SCHEDULE');
   const [loading, setLoading] = useState(true);
-  const [selectedClientStandards, setSelectedClientStandards] = useState<{name: string, standards: ClientStandard[]} | null>(null);
+  const [selectedClientStandards, setSelectedClientStandards] = useState<{ name: string, standards: ClientStandard[] } | null>(null);
   const [loadingStandards, setLoadingStandards] = useState(false);
 
   // Real Data from Supabase
@@ -24,7 +25,7 @@ const CSDashboard: React.FC = () => {
       const { data: inspectorsData, error: inspectorsError } = await supabase
         .from('inspectors')
         .select('*');
-      
+
       if (inspectorsError) throw inspectorsError;
       setInspectors(inspectorsData || []);
 
@@ -32,9 +33,9 @@ const CSDashboard: React.FC = () => {
         .from('bookings')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (bookingsError) throw bookingsError;
-      
+
       // Map DB fields to component types if necessary
       const mappedBookings = (bookingsData || []).map(b => ({
         id: b.id,
@@ -59,14 +60,14 @@ const CSDashboard: React.FC = () => {
       setBookings(mappedBookings);
     } catch (error) {
       console.error('Error fetching data:', error);
-      alert('Failed to load data from Supabase');
+      toast.error('Failed to load data from Supabase');
     } finally {
       setLoading(false);
     }
   };
 
-  const [newInspector, setNewInspector] = useState<{name: string, phone: string, email: string, skills: string, equipment: string}>({ 
-    name: '', phone: '', email: '', skills: '', equipment: '' 
+  const [newInspector, setNewInspector] = useState<{ name: string, phone: string, email: string, skills: string, equipment: string }>({
+    name: '', phone: '', email: '', skills: '', equipment: ''
   });
 
   const addInspector = async () => {
@@ -87,14 +88,15 @@ const CSDashboard: React.FC = () => {
           .select();
 
         if (error) throw error;
-        
+
         if (data) {
           setInspectors([...inspectors, data[0]]);
           setNewInspector({ name: '', phone: '', email: '', skills: '', equipment: '' });
+          toast.success('Inspector added successfully');
         }
       } catch (error) {
         console.error('Error adding inspector:', error);
-        alert('Failed to add inspector');
+        toast.error('Failed to add inspector');
       }
     }
   };
@@ -108,12 +110,13 @@ const CSDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      setBookings(bookings.map(b => 
+      setBookings(bookings.map(b =>
         b.id === bookingId ? { ...b, [field === 'actual_inspection_date' ? 'actualInspectionDate' : 'reportNumber']: value } : b
       ));
+      toast.success('Booking details updated');
     } catch (error) {
       console.error('Error updating booking details:', error);
-      alert('Failed to update booking details');
+      toast.error('Failed to update booking details');
     }
   };
 
@@ -122,7 +125,7 @@ const CSDashboard: React.FC = () => {
       // 1. Update booking assignment
       const { error: bookingError } = await supabase
         .from('bookings')
-        .update({ 
+        .update({
           assigned_inspector_id: inspectorId || null,
           status: inspectorId ? 'CONFIRMED' : 'PENDING'
         })
@@ -148,25 +151,25 @@ const CSDashboard: React.FC = () => {
               fabric_type: booking?.fabricType || 'WOVEN',
               pass_threshold: 20
             }]);
-          
+
           if (jobError) {
             console.error('Error creating inspection job:', jobError);
           }
         }
       }
-      
-      setBookings(bookings.map(b => 
-        b.id === bookingId 
-          ? { ...b, assignedInspectorId: inspectorId, status: inspectorId ? 'CONFIRMED' : 'PENDING' } 
+
+      setBookings(bookings.map(b =>
+        b.id === bookingId
+          ? { ...b, assignedInspectorId: inspectorId, status: inspectorId ? 'CONFIRMED' : 'PENDING' }
           : b
       ));
-      
+
       if (inspectorId) {
-        alert('Inspector assigned and job created successfully!');
+        toast.success('Inspector assigned and job created successfully!');
       }
     } catch (error) {
       console.error('Error assigning inspector:', error);
-      alert('Failed to assign inspector');
+      toast.error('Failed to assign inspector');
     }
   };
 
@@ -177,7 +180,7 @@ const CSDashboard: React.FC = () => {
       setSelectedClientStandards({ name: clientName, standards });
     } catch (error) {
       console.error('Error fetching standards:', error);
-      alert('Failed to load client standards');
+      toast.error('Failed to load client standards');
     } finally {
       setLoadingStandards(false);
     }
@@ -195,15 +198,15 @@ const CSDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex gap-4 border-b border-slate-200 pb-2">
-        <button 
+        <button
           onClick={() => setView('SCHEDULE')}
           className={`font-semibold ${view === 'SCHEDULE' ? 'text-brand-600' : 'text-slate-500'}`}
         >
           Schedule & Bookings
         </button>
-        <button 
-           onClick={() => setView('INSPECTORS')}
-           className={`font-semibold ${view === 'INSPECTORS' ? 'text-brand-600' : 'text-slate-500'}`}
+        <button
+          onClick={() => setView('INSPECTORS')}
+          className={`font-semibold ${view === 'INSPECTORS' ? 'text-brand-600' : 'text-slate-500'}`}
         >
           Inspectors Team
         </button>
@@ -233,16 +236,18 @@ const CSDashboard: React.FC = () => {
                   </td>
                   <td className="p-4">{b.inspectionDate}</td>
                   <td className="p-4">
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
+                      title="Actual Inspection Date"
+                      placeholder="Select Date"
                       className="border rounded p-1 text-xs bg-white"
                       value={b.actualInspectionDate || ''}
                       onChange={(e) => updateBookingDetails(b.id, 'actual_inspection_date', e.target.value)}
                     />
                   </td>
                   <td className="p-4">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Report #"
                       className="border rounded p-1 text-xs bg-white w-24"
                       value={b.reportNumber || ''}
@@ -253,12 +258,12 @@ const CSDashboard: React.FC = () => {
                     <div className="truncate max-w-[100px]" title={b.fabricInfo}>{b.fabricInfo}</div>
                   </td>
                   <td className="p-4">
-                     <span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                       {b.status}
-                     </span>
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {b.status}
+                    </span>
                   </td>
                   <td className="p-4">
-                    <button 
+                    <button
                       onClick={() => viewStandards(b.clientName)}
                       className="text-brand-600 hover:text-brand-700 font-bold text-xs flex items-center gap-1"
                     >
@@ -266,9 +271,10 @@ const CSDashboard: React.FC = () => {
                     </button>
                   </td>
                   <td className="p-4">
-                    <select 
+                    <select
                       className="border rounded p-1 text-sm bg-white"
                       value={b.assignedInspectorId || ''}
+                      title="Assign Inspector"
                       onChange={(e) => assignInspector(b.id, e.target.value)}
                     >
                       <option value="">Select Inspector</option>
@@ -288,112 +294,112 @@ const CSDashboard: React.FC = () => {
 
       {view === 'INSPECTORS' && (
         <div className="space-y-6">
-           {/* Add Inspector Form */}
-           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-             <h3 className="text-sm font-bold text-slate-700 mb-3 uppercase">Register New Inspector</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-               <div>
-                 <label className="text-xs font-bold text-slate-500">Name</label>
-                 <input 
-                   type="text" 
-                   value={newInspector.name}
-                   onChange={e => setNewInspector({...newInspector, name: e.target.value})}
-                   className="w-full p-2 border rounded"
-                   placeholder="Full Name"
-                 />
-               </div>
-               <div>
-                 <label className="text-xs font-bold text-slate-500">Email</label>
-                 <input 
-                   type="email" 
-                   value={newInspector.email}
-                   onChange={e => setNewInspector({...newInspector, email: e.target.value})}
-                   className="w-full p-2 border rounded"
-                   placeholder="email@example.com"
-                 />
-               </div>
-               <div>
-                 <label className="text-xs font-bold text-slate-500">Phone</label>
-                 <input 
-                   type="text" 
-                   value={newInspector.phone}
-                   onChange={e => setNewInspector({...newInspector, phone: e.target.value})}
-                   className="w-full p-2 border rounded"
-                   placeholder="+1 ..."
-                 />
-               </div>
-               <div>
-                 <label className="text-xs font-bold text-slate-500">Skills (comma separated)</label>
-                 <input 
-                   type="text" 
-                   value={newInspector.skills}
-                   onChange={e => setNewInspector({...newInspector, skills: e.target.value})}
-                   className="w-full p-2 border rounded"
-                   placeholder="e.g. Knits, Silk, Denim"
-                 />
-               </div>
-               <div>
-                 <label className="text-xs font-bold text-slate-500">Equipment (comma separated)</label>
-                 <input 
-                   type="text" 
-                   value={newInspector.equipment}
-                   onChange={e => setNewInspector({...newInspector, equipment: e.target.value})}
-                   className="w-full p-2 border rounded"
-                   placeholder="e.g. Laptop, Camera, Tape"
-                 />
-               </div>
-               <div className="flex items-end">
-                 <button 
-                   onClick={addInspector}
-                   className="w-full bg-brand-600 text-white px-6 py-2 rounded font-bold hover:bg-brand-700"
-                 >
-                   Add Member
-                 </button>
-               </div>
-             </div>
-           </div>
+          {/* Add Inspector Form */}
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-700 mb-3 uppercase">Register New Inspector</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Name</label>
+                <input
+                  type="text"
+                  value={newInspector.name}
+                  onChange={e => setNewInspector({ ...newInspector, name: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="Full Name"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Email</label>
+                <input
+                  type="email"
+                  value={newInspector.email}
+                  onChange={e => setNewInspector({ ...newInspector, email: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Phone</label>
+                <input
+                  type="text"
+                  value={newInspector.phone}
+                  onChange={e => setNewInspector({ ...newInspector, phone: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="+1 ..."
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Skills (comma separated)</label>
+                <input
+                  type="text"
+                  value={newInspector.skills}
+                  onChange={e => setNewInspector({ ...newInspector, skills: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="e.g. Knits, Silk, Denim"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Equipment (comma separated)</label>
+                <input
+                  type="text"
+                  value={newInspector.equipment}
+                  onChange={e => setNewInspector({ ...newInspector, equipment: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="e.g. Laptop, Camera, Tape"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={addInspector}
+                  className="w-full bg-brand-600 text-white px-6 py-2 rounded font-bold hover:bg-brand-700"
+                >
+                  Add Member
+                </button>
+              </div>
+            </div>
+          </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             {inspectors.map(inspector => (
-               <div key={inspector.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex items-start gap-4">
-                 <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold flex-shrink-0">
-                   {inspector.name.charAt(0)}
-                 </div>
-                 <div className="flex-1 min-w-0">
-                   <h3 className="font-bold text-lg text-slate-800 truncate">{inspector.name}</h3>
-                   <div className="text-sm text-slate-500 flex items-center gap-2 mt-1 truncate">
-                     <Mail size={14} /> {inspector.email}
-                   </div>
-                   <div className="text-sm text-slate-500 flex items-center gap-2 mt-1 truncate">
-                     <Phone size={14} /> {inspector.phone}
-                   </div>
-                   
-                   <div className="mt-3">
-                      <div className="flex items-center gap-1 text-xs text-slate-400 mb-1">
-                        <BadgeCheck size={12} /> Skills
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {inspector.skills.map((s, i) => (
-                          <span key={i} className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded border border-brand-100">{s}</span>
-                        ))}
-                      </div>
-                   </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {inspectors.map(inspector => (
+              <div key={inspector.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex items-start gap-4">
+                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold flex-shrink-0">
+                  {inspector.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg text-slate-800 truncate">{inspector.name}</h3>
+                  <div className="text-sm text-slate-500 flex items-center gap-2 mt-1 truncate">
+                    <Mail size={14} /> {inspector.email}
+                  </div>
+                  <div className="text-sm text-slate-500 flex items-center gap-2 mt-1 truncate">
+                    <Phone size={14} /> {inspector.phone}
+                  </div>
 
-                   <div className="mt-2">
-                      <div className="flex items-center gap-1 text-xs text-slate-400 mb-1">
-                        <Briefcase size={12} /> Equipment
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {inspector.equipment.map((e, i) => (
-                          <span key={i} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{e}</span>
-                        ))}
-                      </div>
-                   </div>
+                  <div className="mt-3">
+                    <div className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+                      <BadgeCheck size={12} /> Skills
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {inspector.skills.map((s, i) => (
+                        <span key={i} className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded border border-brand-100">{s}</span>
+                      ))}
+                    </div>
+                  </div>
 
-                 </div>
-               </div>
-             ))}
-           </div>
+                  <div className="mt-2">
+                    <div className="flex items-center gap-1 text-xs text-slate-400 mb-1">
+                      <Briefcase size={12} /> Equipment
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {inspector.equipment.map((e, i) => (
+                        <span key={i} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{e}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {/* Standards Modal */}
@@ -405,7 +411,8 @@ const CSDashboard: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-800">{selectedClientStandards.name}</h2>
                 <p className="text-sm text-slate-500">Inspection Standards Protocol</p>
               </div>
-              <button 
+              <button
+                title="Close"
                 onClick={() => setSelectedClientStandards(null)}
                 className="p-2 hover:bg-slate-100 rounded-full transition-colors"
               >
@@ -474,7 +481,7 @@ const CSDashboard: React.FC = () => {
               )}
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button 
+              <button
                 onClick={() => setSelectedClientStandards(null)}
                 className="px-6 py-2 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 transition"
               >

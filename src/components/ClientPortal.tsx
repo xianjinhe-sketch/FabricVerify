@@ -3,6 +3,7 @@ import { Booking, ClientProfile, ClientStandard, FabricType } from '../types';
 import { Calendar, Package, ClipboardList, User, Loader2, Settings, ShieldCheck, Trash2 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { dataService } from '../services/dataService';
+import toast from 'react-hot-toast';
 
 const ClientPortal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'BOOKING' | 'LIST' | 'STANDARDS'>('BOOKING');
@@ -71,11 +72,11 @@ const ClientPortal: React.FC = () => {
   });
 
   const handleSubmitBooking = async () => {
-    if(!newBooking.fabricInfo || !newBooking.inspectionDate || !newBooking.factoryName) {
-      alert("Please fill in Fabric Information, Requested Date, and Factory Name");
+    if (!newBooking.fabricInfo || !newBooking.inspectionDate || !newBooking.factoryName) {
+      toast.error("Please fill in Fabric Information, Requested Date, and Factory Name");
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const { data, error } = await supabase
@@ -105,47 +106,47 @@ const ClientPortal: React.FC = () => {
 
       console.log('Booking submitted successfully:', data);
 
-        if (data && data.length > 0) {
-          const mapped: Booking = {
-            id: data[0].id,
-            clientName: data[0].client_name,
-            fabricInfo: data[0].fabric_info,
-            fabricType: data[0].fabric_type,
-            inspectionDate: data[0].inspection_date,
-            shipmentDate: data[0].shipment_date,
-            orderQuantity: data[0].order_quantity,
-            factoryName: data[0].factory_name,
-            factoryAddress: data[0].factory_address,
-            contactPerson: data[0].contact_person,
-            contactPhone: data[0].contact_phone,
-            contactEmail: data[0].contact_email,
-            productImages: data[0].product_images,
-            requirements: data[0].requirements,
-            status: data[0].status
-          };
-          setBookings([mapped, ...bookings]);
-          setNewBooking({ 
-            fabricInfo: '', 
-            inspectionDate: '', 
-            shipmentDate: '',
-            orderQuantity: '',
-            factoryName: '',
-            factoryAddress: '',
-            contactPerson: '',
-            contactPhone: '',
-            contactEmail: '',
-            requirements: '',
-            fabricType: FabricType.WOVEN,
-            productImages: []
-          });
-          setActiveTab('LIST');
-          alert("Booking Request Submitted Successfully!");
+      if (data && data.length > 0) {
+        const mapped: Booking = {
+          id: data[0].id,
+          clientName: data[0].client_name,
+          fabricInfo: data[0].fabric_info,
+          fabricType: data[0].fabric_type,
+          inspectionDate: data[0].inspection_date,
+          shipmentDate: data[0].shipment_date,
+          orderQuantity: data[0].order_quantity,
+          factoryName: data[0].factory_name,
+          factoryAddress: data[0].factory_address,
+          contactPerson: data[0].contact_person,
+          contactPhone: data[0].contact_phone,
+          contactEmail: data[0].contact_email,
+          productImages: data[0].product_images,
+          requirements: data[0].requirements,
+          status: data[0].status
+        };
+        setBookings([mapped, ...bookings]);
+        setNewBooking({
+          fabricInfo: '',
+          inspectionDate: '',
+          shipmentDate: '',
+          orderQuantity: '',
+          factoryName: '',
+          factoryAddress: '',
+          contactPerson: '',
+          contactPhone: '',
+          contactEmail: '',
+          requirements: '',
+          fabricType: FabricType.WOVEN,
+          productImages: []
+        });
+        setActiveTab('LIST');
+        toast.success("Booking Request Submitted Successfully!");
       } else {
         throw new Error("No data returned from server after submission");
       }
     } catch (error: any) {
       console.error('Error submitting booking:', error);
-      alert(`Failed to submit booking: ${error.message || 'Unknown error'}. Please ensure you have run the SQL schema in your Supabase SQL Editor.`);
+      toast.error(`Failed to submit booking: ${error.message || 'Unknown error'}. Please ensure you have run the SQL schema in your Supabase SQL Editor.`);
     } finally {
       setSubmitting(false);
     }
@@ -162,9 +163,10 @@ const ClientPortal: React.FC = () => {
 
       setBookings(bookings.filter(b => b.id !== id));
       setBookingToDelete(null);
+      toast.success('Booking deleted');
     } catch (error) {
       console.error('Error deleting booking:', error);
-      alert('Failed to delete booking');
+      toast.error('Failed to delete booking');
     }
   };
 
@@ -180,26 +182,26 @@ const ClientPortal: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex border-b border-slate-200 mb-6">
-        <button 
-          onClick={() => setActiveTab('BOOKING')} 
+        <button
+          onClick={() => setActiveTab('BOOKING')}
           className={`px-4 py-2 font-medium ${activeTab === 'BOOKING' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-slate-500'}`}
         >
           New Request
         </button>
-        <button 
-          onClick={() => setActiveTab('LIST')} 
+        <button
+          onClick={() => setActiveTab('LIST')}
           className={`px-4 py-2 font-medium ${activeTab === 'LIST' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-slate-500'}`}
         >
           My Bookings
         </button>
-        <button 
-          onClick={() => setActiveTab('STANDARDS')} 
+        <button
+          onClick={() => setActiveTab('STANDARDS')}
           className={`px-4 py-2 font-medium ${activeTab === 'STANDARDS' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-slate-500'}`}
         >
           Inspection Standards
         </button>
-        <button 
-          onClick={() => setActiveTab('PROFILE')} 
+        <button
+          onClick={() => setActiveTab('PROFILE')}
           className={`px-4 py-2 font-medium ${activeTab === 'PROFILE' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-slate-500'}`}
         >
           Profile
@@ -209,16 +211,17 @@ const ClientPortal: React.FC = () => {
       {activeTab === 'BOOKING' && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <ClipboardList className="text-brand-600"/> Request Inspection
+            <ClipboardList className="text-brand-600" /> Request Inspection
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Fabric Type (面料类型)</label>
-              <select 
+              <select
                 className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none bg-white"
                 value={newBooking.fabricType}
-                onChange={e => setNewBooking({...newBooking, fabricType: e.target.value as FabricType})}
+                title="Fabric Type"
+                onChange={e => setNewBooking({ ...newBooking, fabricType: e.target.value as FabricType })}
               >
                 <option value={FabricType.WOVEN}>Woven (梭织)</option>
                 <option value={FabricType.KNITTED}>Knitted (针织)</option>
@@ -228,44 +231,48 @@ const ClientPortal: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Order/Shipment Qty (订单/出货数量)</label>
-              <input 
-                type="text" 
-                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+              <input
+                type="text"
+                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                 placeholder="e.g. 5000 meters"
                 value={newBooking.orderQuantity}
-                onChange={e => setNewBooking({...newBooking, orderQuantity: e.target.value})}
+                onChange={e => setNewBooking({ ...newBooking, orderQuantity: e.target.value })}
               />
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Fabric Information (面料详细信息)</label>
-            <input 
-              type="text" 
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+            <input
+              type="text"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="e.g. 100% Cotton, 200 GSM, Red Color"
               value={newBooking.fabricInfo}
-              onChange={e => setNewBooking({...newBooking, fabricInfo: e.target.value})}
+              onChange={e => setNewBooking({ ...newBooking, fabricInfo: e.target.value })}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Requested Inspection Date (申请验货日期)</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
+                title="Requested Inspection Date"
+                placeholder="Select Date"
                 className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                 value={newBooking.inspectionDate}
-                onChange={e => setNewBooking({...newBooking, inspectionDate: e.target.value})}
+                onChange={e => setNewBooking({ ...newBooking, inspectionDate: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Shipment Date (出货日期)</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
+                title="Shipment Date"
+                placeholder="Select Date"
                 className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                 value={newBooking.shipmentDate}
-                onChange={e => setNewBooking({...newBooking, shipmentDate: e.target.value})}
+                onChange={e => setNewBooking({ ...newBooking, shipmentDate: e.target.value })}
               />
             </div>
           </div>
@@ -275,49 +282,55 @@ const ClientPortal: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Factory Name (工厂名称)</label>
-                <input 
-                  type="text" 
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                <input
+                  type="text"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                   placeholder="Enter factory name"
                   value={newBooking.factoryName}
-                  onChange={e => setNewBooking({...newBooking, factoryName: e.target.value})}
+                  onChange={e => setNewBooking({ ...newBooking, factoryName: e.target.value })}
                 />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Factory Address (工厂地址)</label>
-                <input 
-                  type="text" 
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                <input
+                  type="text"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                   placeholder="Enter full address"
                   value={newBooking.factoryAddress}
-                  onChange={e => setNewBooking({...newBooking, factoryAddress: e.target.value})}
+                  onChange={e => setNewBooking({ ...newBooking, factoryAddress: e.target.value })}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Contact Person (联系人)</label>
-                <input 
-                  type="text" 
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                <input
+                  type="text"
+                  title="Contact Person"
+                  placeholder="Contact Person Name"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                   value={newBooking.contactPerson}
-                  onChange={e => setNewBooking({...newBooking, contactPerson: e.target.value})}
+                  onChange={e => setNewBooking({ ...newBooking, contactPerson: e.target.value })}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Phone (电话)</label>
-                <input 
-                  type="text" 
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                <input
+                  type="text"
+                  title="Contact Phone"
+                  placeholder="Phone Number"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                   value={newBooking.contactPhone}
-                  onChange={e => setNewBooking({...newBooking, contactPhone: e.target.value})}
+                  onChange={e => setNewBooking({ ...newBooking, contactPhone: e.target.value })}
                 />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email (邮件)</label>
-                <input 
-                  type="email" 
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                <input
+                  type="email"
+                  title="Contact Email"
+                  placeholder="Email Address"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                   value={newBooking.contactEmail}
-                  onChange={e => setNewBooking({...newBooking, contactEmail: e.target.value})}
+                  onChange={e => setNewBooking({ ...newBooking, contactEmail: e.target.value })}
                 />
               </div>
             </div>
@@ -326,8 +339,8 @@ const ClientPortal: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Product Images (产品图片)</label>
             <div className="flex items-center gap-4">
-              <input 
-                type="file" 
+              <input
+                type="file"
                 multiple
                 accept="image/*"
                 className="hidden"
@@ -340,11 +353,11 @@ const ClientPortal: React.FC = () => {
                     for (let i = 0; i < files.length; i++) {
                       newImages.push(URL.createObjectURL(files[i]));
                     }
-                    setNewBooking({...newBooking, productImages: newImages});
+                    setNewBooking({ ...newBooking, productImages: newImages });
                   }
                 }}
               />
-              <label 
+              <label
                 htmlFor="product-images"
                 className="cursor-pointer bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg p-4 flex flex-col items-center justify-center w-32 h-32 hover:bg-slate-200 transition"
               >
@@ -355,11 +368,12 @@ const ClientPortal: React.FC = () => {
                 {newBooking.productImages?.map((img, idx) => (
                   <div key={idx} className="relative w-32 h-32 rounded-lg overflow-hidden border">
                     <img src={img} alt="Product" className="w-full h-full object-cover" />
-                    <button 
+                    <button
+                      title="Remove Image"
                       onClick={() => {
                         const imgs = [...(newBooking.productImages || [])];
                         imgs.splice(idx, 1);
-                        setNewBooking({...newBooking, productImages: imgs});
+                        setNewBooking({ ...newBooking, productImages: imgs });
                       }}
                       className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
                     >
@@ -373,15 +387,15 @@ const ClientPortal: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Special Requirements / Remarks</label>
-            <textarea 
+            <textarea
               className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none h-24"
               placeholder="Any specific defects to look out for?"
               value={newBooking.requirements}
-              onChange={e => setNewBooking({...newBooking, requirements: e.target.value})}
+              onChange={e => setNewBooking({ ...newBooking, requirements: e.target.value })}
             />
           </div>
-          
-          <button 
+
+          <button
             onClick={handleSubmitBooking}
             disabled={submitting}
             className="w-full bg-brand-600 text-white py-3 rounded-lg font-bold hover:bg-brand-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -400,35 +414,35 @@ const ClientPortal: React.FC = () => {
 
       {activeTab === 'LIST' && (
         <div className="space-y-4">
-           {bookings.map(b => (
-             <div key={b.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group">
-               <div>
-                 <div className="font-bold text-slate-800">{b.fabricInfo}</div>
-                 <div className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                   <Calendar size={14}/> {b.inspectionDate}
-                 </div>
-               </div>
-               <div className="flex items-center gap-4">
-                 <span className={`px-3 py-1 rounded-full text-xs font-bold 
-                   ${b.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
-                     b.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>
-                   {b.status}
-                 </span>
-                 <button 
-                   onClick={() => setBookingToDelete(b.id)}
-                   className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50 opacity-0 group-hover:opacity-100"
-                   title="Delete Booking"
-                 >
-                   <Trash2 size={18} />
-                 </button>
-               </div>
-             </div>
-           ))}
-           {bookings.length === 0 && (
-             <div className="text-center p-8 text-slate-500 bg-white rounded-xl border border-slate-100">
-               No bookings found.
-             </div>
-           )}
+          {bookings.map(b => (
+            <div key={b.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group">
+              <div>
+                <div className="font-bold text-slate-800">{b.fabricInfo}</div>
+                <div className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                  <Calendar size={14} /> {b.inspectionDate}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold 
+                   ${b.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                    b.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>
+                  {b.status}
+                </span>
+                <button
+                  onClick={() => setBookingToDelete(b.id)}
+                  className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50 opacity-0 group-hover:opacity-100"
+                  title="Delete Booking"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {bookings.length === 0 && (
+            <div className="text-center p-8 text-slate-500 bg-white rounded-xl border border-slate-100">
+              No bookings found.
+            </div>
+          )}
         </div>
       )}
 
@@ -437,13 +451,14 @@ const ClientPortal: React.FC = () => {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
-                <ShieldCheck className="text-brand-600"/> Inspection Standards Configuration
+                <ShieldCheck className="text-brand-600" /> Inspection Standards Configuration
               </h2>
               <div className="flex items-center gap-2">
                 <label className="text-sm font-bold text-slate-600">Fabric Type:</label>
                 <select
                   className="p-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none bg-white font-medium"
                   value={selectedStandardType}
+                  title="Fabric Type"
                   onChange={(e) => setSelectedStandardType(e.target.value as FabricType)}
                 >
                   <option value={FabricType.WOVEN}>Woven (梭织)</option>
@@ -452,7 +467,7 @@ const ClientPortal: React.FC = () => {
                 </select>
               </div>
             </div>
-            
+
             <div className="max-w-2xl">
               {(() => {
                 const type = selectedStandardType;
@@ -490,13 +505,14 @@ const ClientPortal: React.FC = () => {
                       {type === FabricType.WOVEN ? 'Woven (梭织)' : type === FabricType.KNITTED ? 'Knitted (针织)' : 'Other (其他)'}
                       <span className="text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded">Protocol Active</span>
                     </h3>
-                    
+
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sampling Standard (抽样标准)</label>
-                        <select 
+                        <select
                           className="w-full p-2 text-sm border rounded bg-white"
                           value={standard.samplingStandard}
+                          title="Sampling Standard"
                           onChange={e => updateStandard('samplingStandard', e.target.value)}
                         >
                           <option value="10%">10%</option>
@@ -504,7 +520,7 @@ const ClientPortal: React.FC = () => {
                           <option value="Other">Other</option>
                         </select>
                         {standard.samplingStandard === 'Other' && (
-                          <input 
+                          <input
                             type="text"
                             className="w-full mt-2 p-2 text-sm border rounded bg-white"
                             placeholder="Specify other sampling standard"
@@ -515,8 +531,8 @@ const ClientPortal: React.FC = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Weight Tol. (克重允差)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.weightTolerance}
                             onChange={e => updateStandard('weightTolerance', e.target.value)}
@@ -525,8 +541,8 @@ const ClientPortal: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Width Tol. (门幅允差)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.widthTolerance}
                             onChange={e => updateStandard('widthTolerance', e.target.value)}
@@ -537,8 +553,8 @@ const ClientPortal: React.FC = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Qty Tol. (数量偏差)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.quantityTolerance}
                             onChange={e => updateStandard('quantityTolerance', e.target.value)}
@@ -547,8 +563,8 @@ const ClientPortal: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Length Tol. (长度偏差)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.lengthTolerance}
                             onChange={e => updateStandard('lengthTolerance', e.target.value)}
@@ -558,8 +574,8 @@ const ClientPortal: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Color Tolerance (色差允差)</label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           className="w-full p-2 text-sm border rounded bg-white"
                           value={standard.colorTolerance}
                           onChange={e => updateStandard('colorTolerance', e.target.value)}
@@ -569,8 +585,8 @@ const ClientPortal: React.FC = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Bow/Skew Solid (弓纬-净色)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.bowSkewSolid}
                             onChange={e => updateStandard('bowSkewSolid', e.target.value)}
@@ -579,8 +595,8 @@ const ClientPortal: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Bow/Skew Print (弓纬-印花)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.bowSkewPrint}
                             onChange={e => updateStandard('bowSkewPrint', e.target.value)}
@@ -591,8 +607,8 @@ const ClientPortal: React.FC = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Max Pts/Roll (单卷最高分数)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.maxAcceptablePointPerRoll || '28'}
                             onChange={e => updateStandard('maxAcceptablePointPerRoll', e.target.value)}
@@ -601,8 +617,8 @@ const ClientPortal: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Max Pts/Shipment (整批最高分数)</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full p-2 text-sm border rounded bg-white"
                             value={standard.maxShipmentPointCount || '20'}
                             onChange={e => updateStandard('maxShipmentPointCount', e.target.value)}
@@ -612,22 +628,24 @@ const ClientPortal: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Other Standards (其他)</label>
-                        <textarea 
+                        <textarea
                           className="w-full p-2 text-sm border rounded bg-white h-16"
                           value={standard.otherStandards}
+                          title="Other Standards"
+                          placeholder="Other standards..."
                           onChange={e => updateStandard('otherStandards', e.target.value)}
                         />
                       </div>
                     </div>
-                    
-                    <button 
+
+                    <button
                       onClick={async () => {
                         try {
                           await dataService.saveClientStandard(standard);
-                          alert(`${type} standards saved successfully!`);
+                          toast.success(`${type} standards saved successfully!`);
                         } catch (err) {
                           console.error(err);
-                          alert('Failed to save standards');
+                          toast.error('Failed to save standards');
                         }
                       }}
                       className="w-full py-2 bg-brand-600 text-white rounded font-bold text-sm hover:bg-brand-700 transition"
@@ -662,7 +680,7 @@ const ClientPortal: React.FC = () => {
               <label className="text-xs text-slate-500 uppercase">Phone</label>
               <div className="font-medium">{profile.phone}</div>
             </div>
-             <div className="col-span-2">
+            <div className="col-span-2">
               <label className="text-xs text-slate-500 uppercase">Billing / Bank Info</label>
               <div className="font-medium">{profile.bankInfo}</div>
             </div>
@@ -677,13 +695,13 @@ const ClientPortal: React.FC = () => {
             <h3 className="text-lg font-bold text-slate-800 mb-2">Delete Booking</h3>
             <p className="text-slate-600 mb-6">Are you sure you want to delete this booking? This action cannot be undone.</p>
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setBookingToDelete(null)}
                 className="flex-1 py-2.5 px-4 rounded-lg font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => handleDeleteBooking(bookingToDelete)}
                 className="flex-1 py-2.5 px-4 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
               >

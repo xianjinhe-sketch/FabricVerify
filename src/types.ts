@@ -83,6 +83,8 @@ export interface Defect {
   isContinuous?: boolean;
   isHole?: boolean;
   defectLength?: number;
+  lengthInches?: number;
+  imagePath?: string;
 }
 
 export interface RollData {
@@ -134,6 +136,7 @@ export interface InspectionJob {
   samplingMethod?: 'MANUAL' | 'TEN_PERCENT' | 'SQUARE_ROOT';
   totalShipmentQuantity?: number;
   reviewerComments?: string;
+  inspectorComments?: string;
 }
 
 export const DEFECT_TYPES: Record<'WARP' | 'WEFT', string[]> = {
