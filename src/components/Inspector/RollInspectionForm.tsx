@@ -1,5 +1,5 @@
 import React from 'react';
-import { Ruler, Scale, Plus, Trash2, ArrowLeft, Camera, ShieldAlert, CircleMinus } from 'lucide-react';
+import { Ruler, Scale, Plus, Minus, Trash2, ArrowLeft, Camera, ShieldAlert, CircleMinus } from 'lucide-react';
 import { InspectionJob, RollData, Defect } from '../../types';
 import { DefectInput } from './DefectInput';
 import { calculateRollStats, suggestPointsFromLength } from '../../utils/scoring';
@@ -84,61 +84,168 @@ export const RollInspectionForm: React.FC<RollInspectionFormProps> = ({ job, rol
                         <Ruler size={18} className="text-brand-500" /> Physical Measurements
                     </h3>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Length (m)</label>
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    id={`roll-length-${rollId}`}
-                                    title="Actual Length in meters"
-                                    placeholder="Actual Length"
-                                    value={currentRoll.actualLength || currentRoll.length || ''}
-                                    onChange={(e) => updateRoll({ actualLength: Math.max(0, Number(e.target.value)) })}
-                                    className="w-full pl-3 pr-12 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500"
-                                />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span>
+                    <div className="space-y-6">
+                        {/* Length (m) */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">Length (m)</label>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Ticket: {currentRoll.length}m</span>
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
-                                <span>Ticket: {currentRoll.length}m</span>
-                                {currentRoll.actualLength && currentRoll.length && Math.abs(currentRoll.actualLength - currentRoll.length) > 2 && (
-                                    <span className="text-red-500 font-bold">Diff {Math.abs(currentRoll.actualLength - currentRoll.length).toFixed(1)}m!</span>
-                                )}
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        id={`actual-length-${rollId}`}
+                                        title="Actual Length"
+                                        placeholder="Actual Length"
+                                        value={currentRoll.actualLength ?? currentRoll.length}
+                                        onChange={(e) => updateRoll({ actualLength: Number(e.target.value) })}
+                                        className={`w-full px-3 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500 ${Math.abs((currentRoll.actualLength ?? currentRoll.length) - currentRoll.length) > 2 ? 'text-red-500 font-bold' : (currentRoll.actualLength ?? currentRoll.length) !== currentRoll.length ? 'text-orange-600 font-bold' : ''
+                                            }`}
+                                    />
+
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">m</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <button
+                                        onClick={() => updateRoll({ actualLength: Number(((currentRoll.actualLength ?? currentRoll.length) + 0.1).toFixed(1)) })}
+                                        title="Increase Length"
+                                        className="p-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-600"
+                                    >
+                                        <Plus size={14} />
+                                    </button>
+                                    <button
+                                        onClick={() => updateRoll({ actualLength: Number(((currentRoll.actualLength ?? currentRoll.length) - 0.1).toFixed(1)) })}
+                                        title="Decrease Length"
+                                        className="p-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-600"
+                                    >
+                                        <Minus size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-slate-400">DIFF:</span>
+                                {(() => {
+                                    const actual = currentRoll.actualLength ?? currentRoll.length;
+                                    const ticket = currentRoll.length;
+                                    const diff = actual - ticket;
+                                    const percent = ((diff / ticket) * 100).toFixed(2);
+                                    const isError = Math.abs(Number(percent)) > 2; // Example threshold
+                                    return (
+                                        <span className={isError ? 'text-red-500' : 'text-slate-500'}>
+                                            {diff > 0 ? '+' : ''}{diff.toFixed(1)}m ({percent}%)
+                                        </span>
+                                    );
+                                })()}
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cuttable Width (inch)</label>
+                        {/* Cuttable Width (in) */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">Cuttable Width (in)</label>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Req: {currentRoll.width}"</span>
+                            </div>
                             <div className="relative">
                                 <input
                                     type="number"
-                                    min="0"
-                                    id={`roll-width-${rollId}`}
-                                    title="Cuttable Width in inches"
-                                    placeholder="Cuttable Width"
-                                    value={currentRoll.cuttableWidth || currentRoll.width || ''}
-                                    onChange={(e) => updateRoll({ cuttableWidth: Math.max(0, Number(e.target.value)) })}
-                                    className="w-full pl-3 pr-12 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500"
+                                    id={`cuttable-width-${rollId}`}
+                                    title="Actual Cuttable Width"
+                                    placeholder="Actual Cuttable Width"
+                                    value={currentRoll.cuttableWidth ?? currentRoll.width}
+                                    onChange={(e) => updateRoll({ cuttableWidth: Number(e.target.value) })}
+                                    className={`w-full px-3 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500 ${(currentRoll.cuttableWidth ?? currentRoll.width) < currentRoll.width ? 'text-red-500 font-bold' : ''
+                                        }`}
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">in</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">in</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-slate-400">DIFF:</span>
+                                {(() => {
+                                    const actual = currentRoll.cuttableWidth ?? currentRoll.width;
+                                    const req = currentRoll.width;
+                                    const diff = actual - req;
+                                    const percent = ((diff / req) * 100).toFixed(2);
+                                    const isError = actual < req;
+                                    return (
+                                        <span className={isError ? 'text-red-500' : 'text-slate-500'}>
+                                            {diff > 0 ? '+' : ''}{diff.toFixed(1)}" ({percent}%)
+                                        </span>
+                                    );
+                                })()}
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Weight (g/m²)</label>
+                        {/* Full Width (in) */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">Full Width (in)</label>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Req: {currentRoll.width}"</span>
+                            </div>
                             <div className="relative">
                                 <input
                                     type="number"
-                                    min="0"
-                                    id={`roll-weight-${rollId}`}
-                                    title="Actual Weight in GSM"
-                                    placeholder="Weight"
-                                    value={currentRoll.actualWeight || currentRoll.weight || ''}
-                                    onChange={(e) => updateRoll({ actualWeight: Math.max(0, Number(e.target.value)) })}
-                                    className="w-full pl-3 pr-12 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500"
+                                    id={`overall-width-${rollId}`}
+                                    title="Actual Overall Width"
+                                    placeholder="Actual Overall Width"
+                                    value={currentRoll.overallWidth ?? currentRoll.width}
+                                    onChange={(e) => updateRoll({ overallWidth: Number(e.target.value) })}
+                                    className={`w-full px-3 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500 ${(currentRoll.overallWidth ?? currentRoll.width) < currentRoll.width ? 'text-red-500 font-bold' : ''
+                                        }`}
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">gsm</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">in</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-slate-400">DIFF:</span>
+                                {(() => {
+                                    const actual = currentRoll.overallWidth ?? currentRoll.width;
+                                    const req = currentRoll.width;
+                                    const diff = actual - req;
+                                    const percent = ((diff / req) * 100).toFixed(2);
+                                    const isError = actual < req;
+                                    return (
+                                        <span className={isError ? 'text-red-500' : 'text-slate-500'}>
+                                            {diff > 0 ? '+' : ''}{diff.toFixed(1)}" ({percent}%)
+                                        </span>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* Weight (gsm) */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">Weight (gsm)</label>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Req: {currentRoll.weight}</span>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    id={`actual-weight-${rollId}`}
+                                    title="Actual Weight"
+                                    placeholder="Actual Weight"
+                                    value={currentRoll.actualWeight ?? currentRoll.weight}
+                                    onChange={(e) => updateRoll({ actualWeight: Number(e.target.value) })}
+                                    className={`w-full px-3 py-2 bg-slate-50 border-0 rounded-lg font-mono text-lg focus:ring-2 focus:ring-brand-500 ${Math.abs((currentRoll.actualWeight ?? currentRoll.weight) - currentRoll.weight) > currentRoll.weight * 0.05 ? 'text-red-500 font-bold' : ''
+                                        }`}
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">gsm</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-slate-400">DIFF:</span>
+                                {(() => {
+                                    const actual = currentRoll.actualWeight ?? currentRoll.weight;
+                                    const req = currentRoll.weight;
+                                    const diff = actual - req;
+                                    const percent = ((diff / req) * 100).toFixed(2);
+                                    const isError = Math.abs(actual - req) > req * 0.05; // 5% tolerance example
+                                    return (
+                                        <span className={isError ? 'text-red-500' : 'text-slate-500'}>
+                                            {diff > 0 ? '+' : ''}{diff.toFixed(1)} ({percent}%)
+                                        </span>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>
